@@ -158,6 +158,7 @@ export default function Ajustes() {
         waEstado: guardado.waEstado || previo.waEstado,
         waAviso: guardado.waAviso || '',
       }));
+      setFase('');
       setAviso('Ajustes guardados');
     } catch (err) {
       setError(err.message);
@@ -171,10 +172,20 @@ export default function Ajustes() {
     setFase('CONECTANDO');
     setError('');
     setAviso('');
+    const cancelacion = new AbortController();
     try {
-      const preparacion = await api('/api/ajustes/whatsapp/preparar', { method: 'POST', body: {} });
-      const alta = await abrirAltaMeta(datos.metaConfigId);
-      const guardado = await api('/api/ajustes/whatsapp/conectar', { method: 'POST', body: { ...alta, state: preparacion.state } });
+      const [preparacion, alta] = await Promise.all([
+        api('/api/ajustes/whatsapp/preparar', { method: 'POST', body: {} }),
+        abrirAltaMeta(datos.metaConfigId, { signal: cancelacion.signal }),
+      ]);
+      let guardado = await api('/api/ajustes/whatsapp/conectar', { method: 'POST', body: { ...alta, state: preparacion.state } });
+      if (guardado.waEstado === 'CONECTADO' && guardado.waTipo === 'COEXISTENCIA') {
+        try {
+          guardado = await api('/api/ajustes/whatsapp/sincronizar', { method: 'POST', body: {} });
+        } catch (err) {
+          guardado = { ...guardado, waAviso: `La conexión se guardó, pero no se pudo iniciar la sincronización: ${err.message}` };
+        }
+      }
       setDatos((previo) => ({
         ...previo,
         ...guardado,
@@ -187,12 +198,13 @@ export default function Ajustes() {
       }));
       setFase('');
       setAviso(guardado.waEstado === 'CONECTADO'
-        ? 'WhatsApp Business quedó conectado. El celular sigue usando el mismo número.'
-        : 'Meta no confirmó la conexión.');
+        ? 'WhatsApp Business quedó conectado con coexistencia.'
+        : guardado.waAviso || 'La cuenta quedó guardada; falta completar el webhook para recibir mensajes.');
     } catch (err) {
       setFase('ERROR');
       setError(err.message);
     } finally {
+      cancelacion.abort();
       setOcupado(false);
     }
   }
@@ -235,6 +247,10 @@ export default function Ajustes() {
           accessToken: datos.waAccessToken || undefined,
         },
       });
+      if (resultado.ajustes) {
+        setDatos((actual) => ({ ...actual, ...resultado.ajustes, waAccessToken: '' }));
+        setFase('');
+      }
       const texto = resultado.mensaje || 'El número quedó suscripto a la app de Giro';
       setAviso(texto);
       setNotaWa(resultado.aviso ? `${texto} ${resultado.aviso}` : texto);
@@ -242,6 +258,20 @@ export default function Ajustes() {
     } catch (err) {
       setError(err.message);
       setNotaWa(err.message);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function sincronizar() {
+    setOcupado(true);
+    setError('');
+    try {
+      const guardado = await api('/api/ajustes/whatsapp/sincronizar', { method: 'POST', body: {} });
+      setDatos((actual) => ({ ...actual, ...guardado, waAccessToken: '' }));
+      setAviso(guardado.waHistorial === 'PENDIENTE' ? 'Sincronización solicitada a Meta.' : guardado.waAviso);
+    } catch (err) {
+      setError(err.message);
     } finally {
       setOcupado(false);
     }
@@ -411,6 +441,7 @@ export default function Ajustes() {
           {datos.metaAppId && !datos.metaConfigId && <p className="mt-2 text-xs text-muted">Falta GIRO_WHATSAPP_ELS_CONFIG_ID para abrir la coexistencia.</p>}
           {datos.metaAppId && !metaListo && <p className="mt-2 text-xs text-muted">Cargando Meta…</p>}
         </div>
+        <p className="mt-4 text-xs text-muted">Configuración manual para pruebas: usá los IDs y el token del número de prueba de Meta. Esto no activa coexistencia de un número real.</p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="text-xs font-semibold text-muted">Phone Number ID
             <input className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2.5 font-mono text-sm outline-none focus:border-accent" value={datos.waPhoneNumberId} onChange={set('waPhoneNumberId')} />
@@ -434,8 +465,9 @@ export default function Ajustes() {
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="rounded-xl border border-line px-3 py-2 text-xs font-bold text-ink" disabled={ocupado} onClick={probar}>Probar conexión</button>
           <button type="button" className="rounded-xl border border-line px-3 py-2 text-xs font-bold text-ink" disabled={ocupado} onClick={suscribir}>Suscribir a la app de Giro</button>
+          {estadoWa === 'CONECTADO' && datos.waTipo === 'COEXISTENCIA' && <button type="button" className="rounded-xl border border-line px-3 py-2 text-xs font-bold text-ink" disabled={ocupado} onClick={sincronizar}>Sincronizar contactos e historial</button>}
           {notaWa && <p className={`w-full text-xs font-semibold ${error ? 'text-rose-600' : 'text-emerald-700'}`}>{notaWa}</p>}
-          {(estadoWa === 'CONECTADO' || estadoWa === 'RECONEXION') && <button type="button" className="rounded-xl px-3 py-2 text-xs font-bold text-rose-600" disabled={ocupado} onClick={desconectar}>Desconectar</button>}
+          {(['CONECTADO', 'RECONEXION', 'PENDIENTE_WEBHOOK', 'VALIDADO'].includes(estadoWa)) && <button type="button" className="rounded-xl px-3 py-2 text-xs font-bold text-rose-600" disabled={ocupado} onClick={desconectar}>Desconectar</button>}
         </div>
         <div className="mt-4 space-y-2 rounded-2xl border border-line p-3 text-xs text-muted">
           <p className="font-bold text-ink">Webhook de Giro</p>
@@ -459,6 +491,8 @@ export default function Ajustes() {
 function textoEstado(estado) {
   if (estado === 'CONECTADO') return 'Conectado';
   if (estado === 'CONECTANDO') return 'Conectando';
+  if (estado === 'PENDIENTE_WEBHOOK') return 'Falta configurar recepción';
+  if (estado === 'VALIDADO') return 'Credenciales verificadas';
   if (estado === 'RECONEXION') return 'Requiere reconexión';
   if (estado === 'ERROR') return 'Error';
   return 'Desconectado';
