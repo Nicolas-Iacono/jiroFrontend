@@ -1,0 +1,10 @@
+{
+  "name": "GIRO",
+  "short_name": "GIRO",
+  "description": "Tu negocio en el bolsillo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f3ff",
+  "theme_color": "#6d28d9",
+  "lang": "es-AR"
+}
