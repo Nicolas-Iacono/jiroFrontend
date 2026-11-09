@@ -43,71 +43,71 @@ export function prepararMeta(appId) {
   });
 }
 
-export function abrirAltaMeta(configId) {
+// El SDK debe abrirse sin esperar una petición de red: conserva el gesto del clic.
+export function abrirAltaMeta(configId, { signal } = {}) {
   return new Promise((resolve, reject) => {
-    if (!configId) {
-      reject(new Error('Falta la configuración de coexistencia en el servidor.'));
-      return;
-    }
-    if (!window.FB) {
-      reject(new Error('El SDK de Meta todavía no cargó. Recargá Ajustes e intentá de nuevo.'));
-      return;
-    }
-    const sesion = { phoneNumberId: '', wabaId: '', onboardingType: '', terminado: false, error: '' };
+    if (!configId) return reject(new Error('Falta la configuración de coexistencia en el servidor.'));
+    if (!window.FB) return reject(new Error('El SDK de Meta todavía no cargó. Recargá Ajustes e intentá de nuevo.'));
+    let cerrado = false;
+    let esperaSesion;
+    let limite;
+    let code;
+    let terminado = false;
+    const sesion = { phoneNumberId: '', wabaId: '', onboardingType: '' };
+    const limpiar = () => {
+      window.removeEventListener('message', oir);
+      signal?.removeEventListener('abort', abortar);
+      window.clearTimeout(limite);
+      window.clearTimeout(esperaSesion);
+    };
+    const finalizar = (error) => {
+      if (cerrado) return;
+      cerrado = true;
+      limpiar();
+      if (error) reject(error);
+      else resolve({ code, ...sesion });
+    };
+    const abortar = () => finalizar(new Error('Se canceló la conexión con Meta. Volvé a empezar.'));
     const oir = (event) => {
-      if (!ORIGENES.has(event.origin)) return;
-      try {
-        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        if (data?.type !== 'WA_EMBEDDED_SIGNUP') return;
-        if (data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING' || data.event === 'FINISH' || data.event === 'FINISH_GRANT_ONLY_API_ACCESS') {
-          const payload = data.data || {};
-          sesion.phoneNumberId = payload.phone_number_id || payload.phoneNumberId || sesion.phoneNumberId;
-          sesion.wabaId = payload.waba_id || payload.wabaId || sesion.wabaId;
-          sesion.onboardingType = data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING' ? 'COEXISTENCIA' : 'ESTANDAR';
-          sesion.terminado = true;
-        } else if (data.event === 'FINISH_ONLY_WABA') {
-          sesion.error = 'Meta no vinculó un número. La coexistencia necesita el WhatsApp Business del celular.';
-        } else if (data.event === 'CANCEL') {
-          window.removeEventListener('message', oir);
-          const paso = data.data?.current_step ? ` (${data.data.current_step})` : '';
-          reject(new Error(`Cancelaste la conexión con Meta${paso}`));
-        } else if (data.event === 'ERROR') {
-          window.removeEventListener('message', oir);
-          reject(new Error(data.data?.error_message || 'Meta no pudo completar el alta'));
-        }
-      } catch { /* mensajes que no son del alta */ }
+      if (cerrado || !ORIGENES.has(event.origin)) return;
+      let data;
+      try { data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data; }
+      catch { return; }
+      if (data?.type !== 'WA_EMBEDDED_SIGNUP') return;
+      if (['FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING', 'FINISH', 'FINISH_GRANT_ONLY_API_ACCESS'].includes(data.event)) {
+        const payload = data.data || {};
+        sesion.phoneNumberId = payload.phone_number_id || payload.phoneNumberId || '';
+        sesion.wabaId = payload.waba_id || payload.wabaId || '';
+        // FINISH genérico no demuestra coexistencia. El servidor verifica is_on_biz_app.
+        sesion.onboardingType = data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING' ? 'COEXISTENCIA' : '';
+        terminado = true;
+        if (code) finalizar();
+      } else if (data.event === 'FINISH_ONLY_WABA') {
+        finalizar(new Error('Meta no vinculó un número. Elegí conectar tu WhatsApp Business existente.'));
+      } else if (data.event === 'CANCEL') {
+        const paso = data.data?.current_step ? ` (${data.data.current_step})` : '';
+        finalizar(new Error(`Cancelaste la conexión con Meta${paso}`));
+      } else if (data.event === 'ERROR') {
+        finalizar(new Error(errorAltaMeta(data.data?.error_message, data.data?.error_code)));
+      }
     };
     window.addEventListener('message', oir);
-    const terminar = (response) => {
-      const code = response?.authResponse?.code;
-      if (!code) {
-        window.removeEventListener('message', oir);
-        if (response?.status === 'not_authorized') {
-          reject(new Error('No autorizaste la app de Meta. Aceptá los permisos y volvé a intentar.'));
-          return;
-        }
-        reject(new Error(sesion.error || 'No se completó el login de Meta. Permití las ventanas emergentes de jirohub.com y tocá Finalizar.'));
-        return;
-      }
-      let intentos = 0;
-      const esperar = () => {
-        if (sesion.error) {
-          window.removeEventListener('message', oir);
-          reject(new Error(sesion.error));
-          return;
-        }
-        if (sesion.terminado || intentos >= 8) {
-          window.removeEventListener('message', oir);
-          resolve({ code, phoneNumberId: sesion.phoneNumberId, wabaId: sesion.wabaId, onboardingType: sesion.onboardingType || 'COEXISTENCIA' });
-          return;
-        }
-        intentos += 1;
-        window.setTimeout(esperar, 350);
-      };
-      esperar();
-    };
+    signal?.addEventListener('abort', abortar, { once: true });
+    if (signal?.aborted) return abortar();
+    limite = window.setTimeout(() => finalizar(new Error('Meta no completó la conexión. Cerrá la ventana pendiente y volvé a intentar.')), 5 * 60 * 1000);
     try {
-      window.FB.login(terminar, {
+      window.FB.login((response) => {
+        if (cerrado) return;
+        code = response?.authResponse?.code;
+        if (!code) {
+          finalizar(new Error(response?.status === 'not_authorized'
+            ? 'No autorizaste la app de Meta. Aceptá los permisos y volvé a intentar.'
+            : 'No se completó el login de Meta. Permití las ventanas emergentes de jirohub.com y tocá Finalizar.'));
+        } else if (terminado) finalizar();
+        // Algunos navegadores no entregan el evento de sesión. El backend resolverá
+        // únicamente recursos autorizados, sin adivinar el tipo de conexión.
+        else esperaSesion = window.setTimeout(() => finalizar(), 8000);
+      }, {
         config_id: configId,
         response_type: 'code',
         override_default_response_type: true,
@@ -119,8 +119,14 @@ export function abrirAltaMeta(configId) {
         },
       });
     } catch {
-      window.removeEventListener('message', oir);
-      reject(new Error('No se pudo abrir Meta. Probá con Chrome.'));
+      finalizar(new Error('No se pudo abrir Meta. Permití las ventanas emergentes e intentá de nuevo.'));
     }
   });
+}
+
+function errorAltaMeta(mensaje, codigo) {
+  if (String(codigo) === '2655111' || String(mensaje || '').includes('2655111')) {
+    return 'Meta exige aprobar whatsapp_business_messaging y whatsapp_business_management mediante Revisión de la app. Usá el número de prueba mientras se aprueban.';
+  }
+  return mensaje || 'Meta no pudo completar el alta. Revisá los permisos de la app y volvé a intentar.';
 }
