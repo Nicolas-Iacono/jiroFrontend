@@ -19,8 +19,16 @@ function paginasPublicas() {
 export default defineConfig({
   plugins: [paginasPublicas(), react()],
   resolve: {
-    alias: { '@tienda': fileURLToPath(new URL('../vidriera-ui', import.meta.url)) },
+    alias: { '@tienda': fileURLToPath(new URL('./src/tienda', import.meta.url)) },
     dedupe: ['react', 'react-dom'],
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        panel: fileURLToPath(new URL('./index.html', import.meta.url)),
+        vistaTienda: fileURLToPath(new URL('./vista-tienda.html', import.meta.url)),
+      },
+    },
   },
   server: {
     port: 5173,

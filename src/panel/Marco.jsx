@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useMatch } from 'react-router-dom';
 import { api } from '../api.js';
 import { aplicarTemaApp, temaAppActual, TEMAS_APP } from '../temasApp.js';
 import {
@@ -31,6 +31,7 @@ function iniciales(nombre) {
 }
 
 export default function Marco({ usuario, onSalir, children }) {
+  const editorVidriera = Boolean(useMatch('/vidriera'));
   const [ancho, setAncho] = useState(false);
   const [menu, setMenu] = useState(false);
   const [aviso, setAviso] = useState('');
@@ -75,8 +76,8 @@ export default function Marco({ usuario, onSalir, children }) {
   }, [usuario.comercio]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden font-sans" style={{ background: 'var(--header)' }}>
-        <header className="relative z-20 h-16 shrink-0 text-white" style={{ background: 'var(--header)' }}>
+    <div className={`flex h-screen flex-col overflow-hidden font-sans ${editorVidriera ? 'marco-vidriera' : ''}`} style={{ background: 'var(--header)' }}>
+        <header className="marco-cabecera relative z-20 h-16 shrink-0 text-white" style={{ background: 'var(--header)' }}>
           <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-25 mix-blend-overlay" viewBox="0 0 1200 64" preserveAspectRatio="none" aria-hidden="true">
             <path d="M0 40C180 18 320 52 560 34s380-24 640 8v22H0Z" fill="white" />
           </svg>
@@ -120,8 +121,8 @@ export default function Marco({ usuario, onSalir, children }) {
           )}
         </header>
 
-        <div className="flex min-h-0 flex-1 overflow-hidden rounded-t-[28px] bg-app">
-          <aside className={`hidden shrink-0 flex-col border-r border-line bg-card py-3 md:flex ${ancho ? 'w-[210px] px-3' : 'w-[68px] items-center'}`}>
+        <div className="marco-cuerpo flex min-h-0 flex-1 overflow-hidden rounded-t-[28px] bg-app">
+          <aside className={`marco-lateral hidden shrink-0 flex-col border-r border-line bg-card py-3 md:flex ${ancho ? 'w-[210px] px-3' : 'w-[68px] items-center'}`}>
             {ancho && (
               <div className="mb-3 flex items-center gap-2 px-1">
                 {logo ? <img src={logo} alt="" className={`h-9 w-9 shrink-0 object-cover ${claseForma(forma, true)}`} /> : <span className={`grid h-9 w-9 shrink-0 place-items-center bg-accent-soft text-accent ${claseForma(forma, true)}`}><Tienda className="h-4 w-4" /></span>}
@@ -150,18 +151,18 @@ export default function Marco({ usuario, onSalir, children }) {
               {ancho && 'Colapsar menú'}
             </button>
           </aside>
-          <main className="min-h-0 min-w-0 flex-1 overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <div className="mx-auto w-full max-w-[1400px] px-5 py-5 pb-24 md:px-7 md:pb-6">{children}</div>
+          <main className={`min-h-0 min-w-0 flex-1 ${editorVidriera ? 'marco-editor-vidriera' : 'overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden'}`}>
+            {editorVidriera ? children : <div className="mx-auto w-full max-w-[1400px] px-5 py-5 pb-24 md:px-7 md:pb-6">{children}</div>}
           </main>
         </div>
-        <nav className="fixed inset-x-0 bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-line bg-card px-2 py-1 md:hidden">
+        {!editorVidriera && <nav className="fixed inset-x-0 bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-line bg-card px-2 py-1 md:hidden">
           {entradas.map(([to, label, Icon]) => (
             <NavLink key={to} to={to} end={to === '/'} title={label} className={({ isActive }) => `flex min-w-[64px] flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] ${isActive ? 'bg-accent-soft text-accent' : 'text-faint'}`}>
               <Icon className="h-5 w-5" />
               {label}
             </NavLink>
           ))}
-        </nav>
+        </nav>}
         {apariencia && (
           <div className="fixed inset-0 z-40 grid place-items-center bg-slate-900/60 p-4" onClick={() => setApariencia(false)}>
             <div className="w-full max-w-lg rounded-3xl border border-line bg-card p-5 text-ink shadow-2xl" onClick={(event) => event.stopPropagation()}>

@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, token, urlApi, urlFoto, urlVidriera } from '../api.js';
-import Tienda from '@tienda/Tienda.jsx';
+import { api, pedir, urlVidriera } from '../api.js';
+import { Etiqueta, Filtro, Icono } from './Iconos.jsx';
+import referencias from './referencias-vidriera.png';
+import './vidriera.css';
 import { plantillaDe, plantillas } from '@tienda/registro.js';
 
 const temas = [
@@ -32,15 +34,27 @@ const heroes = [
   ['tipografico', 'Solo título'],
   ['ninguno', 'Sin portada'],
 ];
-const anclas = [
-  ['plantillas', 'Plantillas'],
-  ['identidad', 'Identidad'],
-  ['composicion', 'Vidriera'],
-  ['paleta', 'Paleta y tema'],
-  ['catalogo', 'Catálogo'],
-  ['portada', 'Portada'],
-  ['tipo', 'Tipografía'],
+const secciones = [
+  ['plantillas', 'Plantillas', Ventana],
+  ['marca', 'Marca', Etiqueta],
+  ['estilo', 'Estilo', Filtro],
+  ['contenido', 'Contenido', Imagen],
 ];
+
+const recortes = {
+  'ropa-under': [48, 163],
+  perfumeria: [155, 163],
+  'ropa-lujo': [48, 305],
+  electronica: [155, 305],
+};
+
+const descripciones = {
+  'ropa-under': 'Editorial, moderna y con protagonismo visual. Ideal para moda urbana.',
+  perfumeria: 'Liviana, ordenada y versátil. Resalta tus productos.',
+};
+
+const primeras = Object.keys(recortes);
+const galeria = [...primeras.map(plantillaDe), ...plantillas.filter(({ id }) => !primeras.includes(id))];
 
 function normalizar(data) {
   const radio = Number(data?.radio);
@@ -87,6 +101,10 @@ function normalizar(data) {
       categoriaId: item.categoriaId ? String(item.categoriaId) : '',
       categoria: item.categoria || '',
     })),
+    sumar: data?.sumar || '',
+    sumarForma: data?.sumarForma || 'circular',
+    sumarColor: data?.sumarColor || '',
+    sumarVisible: data?.sumarVisible !== false,
     slug: data?.slug || '',
     localidad: data?.localidad || '',
     partido: data?.partido || '',
@@ -101,10 +119,6 @@ function firma(valor) {
   return JSON.stringify(item);
 }
 
-function pesos(valor) {
-  return `$ ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(Math.round(Number(valor) || 0))}`;
-}
-
 function iniciales(nombre) {
   const partes = String(nombre || 'GI').trim().split(/\s+/).filter(Boolean);
   return ((partes[0]?.[0] || 'G') + (partes[1]?.[0] || '')).toUpperCase();
@@ -117,11 +131,15 @@ export default function Vidriera() {
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const [dispositivo, setDispositivo] = useState('movil');
+  const [dispositivo, setDispositivo] = useState('escritorio');
+  const [modo, setModo] = useState('editar');
+  const [ajustes, setAjustes] = useState(null);
+  const panelEdicion = useRef(null);
   const [subiendo, setSubiendo] = useState(false);
   const [rubros, setRubros] = useState([]);
   const [anticipada, setAnticipada] = useState('');
   const [seccion, setSeccion] = useState('plantillas');
+  const catalogoVista = useFotosPrivadas(productos, base?.publicada === false);
 
   useEffect(() => {
     let vivo = true;
@@ -129,18 +147,37 @@ export default function Vidriera() {
       api('/api/vidriera'),
       api('/api/productos').catch(() => []),
       api('/api/categorias').catch(() => []),
-    ]).then(([vidriera, catalogo, categorias]) => {
+      api('/api/ajustes').catch(() => null),
+    ]).then(([vidriera, catalogo, categorias, configuracion]) => {
       if (!vivo) return;
       const siguiente = normalizar(vidriera);
       setForm(siguiente);
       setBase(siguiente);
       setProductos(catalogo.filter((item) => item.publicado && item.activo !== false));
       setRubros(Array.isArray(categorias) ? categorias : []);
+      setAjustes(configuracion);
     }).catch((err) => vivo && setError(err.message));
     return () => { vivo = false; };
   }, []);
 
   const sucio = form && base ? firma(form) !== firma(base) : false;
+
+  const prueba = anticipada && anticipada !== form?.plantillaId ? plantillaDe(anticipada) : null;
+  const borrador = useMemo(() => {
+    if (!form) return null;
+    const datos = prueba ? { ...form, ...estiloPlantilla(form, prueba), plantillaId: prueba.id } : form;
+    return {
+      ...datos,
+      oferta: ajustes?.oferta,
+      detalles: ajustes?.detalles,
+      productos: catalogoVista,
+      rubros: datos.rubros.map((id) => rubros.find((rubro) => String(rubro.id) === id)).filter(Boolean),
+      secciones: datos.secciones.map((item) => ({
+        ...item,
+        categoria: rubros.find((rubro) => String(rubro.id) === item.categoriaId)?.nombre || item.categoria,
+      })),
+    };
+  }, [form, prueba, ajustes, catalogoVista, rubros]);
 
   function cambiar(parcial) {
     const tocaEstilo = ['color', 'fondo', 'texto', 'fuente'].some((clave) => Object.prototype.hasOwnProperty.call(parcial, clave));
@@ -154,13 +191,7 @@ export default function Vidriera() {
 
   function usarPlantilla(plantilla) {
     setAnticipada('');
-    const estilo = form.estiloPropio ? {} : {
-      color: plantilla.color,
-      fondo: plantilla.fondo,
-      texto: plantilla.texto,
-      fuente: plantilla.fuente,
-    };
-    cambiar({ plantillaId: plantilla.id, ...estilo, estiloPropio: form.estiloPropio });
+    cambiar({ plantillaId: plantilla.id, ...estiloPlantilla(form, plantilla), estiloPropio: form.estiloPropio });
   }
 
   function restaurarEstilo() {
@@ -279,7 +310,8 @@ export default function Vidriera() {
   }
 
   async function guardar(publicar) {
-    const cuerpo = normalizar({ ...form, publicada: publicar ? true : form.publicada });
+    if (guardando || subiendo || !form.titulo.trim()) return;
+    const cuerpo = normalizar({ ...form, publicada: publicar });
     setGuardando(true);
     setError('');
     try {
@@ -341,58 +373,91 @@ export default function Vidriera() {
   if (error && !form) return <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>;
   if (!form) return <p className="text-sm text-muted">Cargando la vidriera…</p>;
 
+  const enlace = form.slug ? urlVidriera(form.slug) : '';
+  const ocupado = guardando || subiendo;
+  const estado = sucio ? 'Cambios sin publicar' : base.publicada ? 'Publicada' : 'Sin publicar';
+  const publicar = (
+    <button type="button" className="vidriera-publicar" disabled={ocupado || !form.titulo.trim()} onClick={() => guardar(true)}>
+      {guardando ? 'Guardando…' : 'Guardar y publicar'}
+    </button>
+  );
+  const estadoCambios = <span className="vidriera-estado" data-pendiente={sucio}>{estado}</span>;
+  const aplicar = prueba && (
+    <div className="vidriera-prueba">
+      <span>Probando <strong>{prueba.nombre}</strong></span>
+      <button type="button" disabled={ocupado} onClick={() => usarPlantilla(prueba)}>Usar plantilla</button>
+      <button type="button" onClick={() => setAnticipada('')}>Cancelar prueba</button>
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="sticky top-0 z-20 -mx-5 space-y-3 bg-app px-5 pb-3 md:-mx-7 md:px-7">
-        <Link to="/" className="inline-block text-xs font-bold text-accent">← Volver al inicio</Link>
-        <Preview form={form} productos={productos} rubros={rubros} dispositivo={dispositivo} onDispositivo={setDispositivo} anticipada={anticipada} seccion={seccion} />
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Secciones de la vidriera">
-          {anclas.map(([id, etiqueta]) => (
-            <button key={id} type="button" role="tab" aria-selected={seccion === id} className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${seccion === id ? 'bg-fill text-onfill' : 'border border-line bg-card text-muted'}`} onClick={() => setSeccion(id)}>{etiqueta}</button>
-          ))}
-        </div>
+    <div className="vidriera" data-modo={modo}>
+      <header className="vidriera-barra">
+        <Link to="/" className="vidriera-volver" aria-label="Volver al inicio">←</Link>
+        <h1><span className="vidriera-titulo-compacto">Mi vidriera</span><span className="vidriera-titulo-amplio">Diseño de la vidriera</span></h1>
+        <div className="vidriera-estado-amplio">{estadoCambios}</div>
+        {enlace && <a className="vidriera-enlace" href={enlace} target="_blank" rel="noreferrer"><Externo />Ver tienda</a>}
+        <div className="vidriera-publicar-amplio">{publicar}</div>
+      </header>
+
+      <div className="vidriera-modos vidriera-segmentos" role="group" aria-label="Vista del editor">
+        <button type="button" aria-pressed={modo === 'editar'} onClick={() => setModo('editar')}>Editar</button>
+        <button type="button" aria-pressed={modo === 'previa'} onClick={() => setModo('previa')}>Vista previa</button>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-base font-bold tracking-tight text-ink">Diseño de la vidriera</h1>
-          {sucio && <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />Cambios sin guardar</span>}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="rounded-xl border border-line bg-card px-3.5 py-2 text-xs font-bold text-muted hover:bg-sunken disabled:opacity-40" disabled={!sucio || guardando} onClick={() => { setForm(base); setAviso(''); }}>Descartar cambios</button>
-          <button type="button" className="rounded-xl bg-fill px-4 py-2 text-xs font-bold text-onfill shadow-md shadow-fill/20 hover:bg-fill-hover disabled:opacity-60" disabled={guardando || !form.titulo.trim()} onClick={() => guardar(false)}>{guardando ? 'Guardando…' : form.publicada ? 'Guardar y publicar' : 'Guardar sin publicar'}</button>
-        </div>
-      </div>
-      {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
-      {aviso && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{aviso}</p>}
+      {error && <p role="alert" className="vidriera-mensaje bg-rose-50 text-rose-800">{error}</p>}
+      {aviso && <p role="status" className="vidriera-mensaje bg-emerald-50 text-emerald-800">{aviso}</p>}
 
-      <div className="space-y-4">
-          <Seccion id="plantillas" visible={seccion === 'plantillas'} titulo="Plantillas">
-            <p className="text-xs text-muted">Elegí una composición. El nombre, el logo, las fotos y los productos siguen siendo los de este comercio. Los colores y las fuentes que ya personalizaste se conservan.</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {plantillas.map((plantilla) => {
-                const activa = form.plantillaId === plantilla.id;
-                const papel = fondos.find((item) => item[0] === plantilla.fondo)?.[2] || '#fff';
-                return (
-                  <article key={plantilla.id} className={`rounded-2xl border p-3 ${activa ? 'border-accent bg-accent-soft' : 'border-line bg-card'}`}>
-                    <div className="mb-2 overflow-hidden rounded-xl border border-black/10 p-3" style={{ background: papel, color: plantilla.texto === 'claro' ? '#F8FAFC' : '#1A1614' }}>
-                      <p className="text-[10px] uppercase tracking-[0.16em]" style={{ color: plantilla.color }}>{plantilla.ejemplo}</p>
-                      <p className="mt-1 text-lg font-black leading-none" style={{ fontFamily: fuentes.find((item) => item[0] === plantilla.fuente)?.[3] }}>Tu tienda</p>
-                      <span className="mt-2 inline-block h-8 w-full rounded-md" style={{ background: plantilla.color, opacity: 0.85 }} />
-                    </div>
-                    <h3 className="text-sm font-black text-ink">{plantilla.nombre}</h3>
-                    <p className="mt-1 text-[11px] text-muted">{plantilla.estructura}</p>
-                    <div className="mt-2 flex gap-2">
-                      <button type="button" className="rounded-xl border border-line bg-card px-3 py-1.5 text-xs font-bold text-ink" onClick={() => setAnticipada(plantilla.id)}>Vista previa</button>
-                      <button type="button" className="rounded-xl bg-fill px-3 py-1.5 text-xs font-bold text-onfill" onClick={() => usarPlantilla(plantilla)}>{activa ? 'En uso' : 'Usar plantilla'}</button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </Seccion>
+      <div className="vidriera-columnas">
+        <section className="vidriera-edicion" aria-label="Personalización">
+          <div className="vidriera-intro">
+            <h2>Personalizá tu tienda</h2>
+            <p>Elegí una plantilla y ajustá la identidad, el estilo y el contenido de tu tienda.</p>
+          </div>
+          <nav className="vidriera-secciones" aria-label="Secciones de la vidriera">
+            {secciones.map(([id, etiqueta, IconoSeccion]) => (
+              <button key={id} type="button" aria-pressed={seccion === id} onClick={() => {
+                setSeccion(id);
+                panelEdicion.current.scrollTop = 0;
+              }}><IconoSeccion />{etiqueta}</button>
+            ))}
+          </nav>
+          <div className="vidriera-campos" ref={panelEdicion}>
+            <fieldset disabled={ocupado} className="min-w-0 space-y-4">
+              {seccion === 'plantillas' && (
+                <section className="vidriera-galeria">
+                  <h2><span className="vidriera-titulo-compacto">Plantillas</span><span className="vidriera-titulo-amplio">Elegí una plantilla</span></h2>
+                  <p>Elegí una composición. El nombre, el logo, las fotos y los productos siguen siendo los de este comercio.</p>
+                  <div className="vidriera-tarjetas">
+                    {galeria.map((plantilla) => {
+                      const activa = form.plantillaId === plantilla.id;
+                      const probando = prueba?.id === plantilla.id;
+                      return (
+                        <article key={plantilla.id} className="vidriera-tarjeta" data-activa={activa} data-probando={probando}>
+                          <button type="button" className="vidriera-tarjeta-boton" aria-pressed={probando || (!prueba && activa)}
+                            aria-label={activa ? plantilla.nombre + ', en uso' : 'Probar ' + plantilla.nombre}
+                            onClick={() => setAnticipada(activa ? '' : plantilla.id)}>
+                            <Miniatura plantilla={plantilla} />
+                            <span className="vidriera-tarjeta-texto">
+                              <strong>{plantilla.nombre}</strong>
+                              <span>{descripciones[plantilla.id] || plantilla.estructura}</span>
+                            </span>
+                            <span className="vidriera-radio" aria-hidden="true">{activa ? '✓' : probando ? '●' : ''}</span>
+                          </button>
+                          {probando && (
+                            <div className="vidriera-tarjeta-acciones">
+                              <button type="button" onClick={() => setModo('previa')}>Ver prueba</button>
+                              <button type="button" onClick={() => usarPlantilla(plantilla)}>Usar plantilla</button>
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
 
-          <Seccion id="identidad" visible={seccion === 'identidad'} titulo="Identidad">
+          <Seccion id="identidad" visible={seccion === 'marca'} titulo="Identidad">
             <div className="flex items-center gap-3">
               <span className={`grid h-24 w-24 overflow-hidden text-2xl font-black text-white ${claseForma(form.logoForma, true)}`} style={{ background: form.color }}>
                 {form.logoUrl ? <img src={form.logoUrl} alt="" className="h-full w-full object-cover" /> : iniciales(form.titulo)}
@@ -402,7 +467,7 @@ export default function Vidriera() {
                 <div className="flex flex-wrap items-center gap-2">
                   <label className={`rounded-xl bg-fill px-3 py-1.5 text-xs font-bold text-white ${subiendo ? 'opacity-60' : 'cursor-pointer'}`}>
                     {subiendo ? 'Subiendo…' : 'Subir logo'}
-                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={subiendo} onChange={subirLogo} />
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={subiendo} onChange={subirLogo} />
                   </label>
                   {form.logoUrl && <button type="button" className="text-xs font-bold text-muted" disabled={subiendo} onClick={quitarLogo}>Quitar logo</button>}
                 </div>
@@ -440,7 +505,7 @@ export default function Vidriera() {
             <Interruptor activo={form.publicada} onClick={() => cambiar({ publicada: !form.publicada })}>Tienda publicada</Interruptor>
           </Seccion>
 
-          <Seccion id="composicion" visible={seccion === 'composicion'} titulo="Vidriera">
+          <Seccion id="composicion" visible={seccion === 'contenido'} titulo="Vidriera">
             <p className="text-[11px] text-muted">Estos textos arman la ficha de marca, la portada y la fila de categorías. Con un tema cálido, oscuro o verde, y las categorías en pastillas, la tienda queda como las tres vidrieras de referencia.</p>
             <Campo etiqueta="Línea bajo el nombre">
               <input className={campo} value={form.estado} maxLength={120} placeholder="Abierto hoy · Villa Crespo" onChange={(event) => cambiar({ estado: event.target.value })} />
@@ -478,7 +543,7 @@ export default function Vidriera() {
             </Campo>
           </Seccion>
 
-          <Seccion id="paleta" visible={seccion === 'paleta'} titulo="Paleta y tema">
+          <Seccion id="paleta" visible={seccion === 'estilo'} titulo="Paleta y tema">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-muted">Los colores y la tipografía son de esta vidriera. La plantilla conserva el orden de las secciones.</p>
               <button type="button" className="rounded-xl border border-line bg-card px-3 py-1.5 text-xs font-bold text-ink" onClick={restaurarEstilo}>Restaurar estilo de la plantilla</button>
@@ -524,7 +589,7 @@ export default function Vidriera() {
             </div>
           </Seccion>
 
-          <Seccion id="catalogo" visible={seccion === 'catalogo'} titulo="Catálogo">
+          <Seccion id="catalogo" visible={seccion === 'contenido'} titulo="Catálogo">
             <div className="grid gap-2 sm:grid-cols-2">
               {[['grilla', '2 columnas', 'Grilla táctil'], ['lista', 'Lista', 'Una prenda por fila']].map(([id, titulo, detalle]) => (
                 <button key={id} type="button" className={`rounded-2xl border p-3 text-left ${form.catalogo === id ? 'border-accent bg-accent-soft' : 'border-line'}`} onClick={() => cambiar({ catalogo: id })}>
@@ -541,7 +606,7 @@ export default function Vidriera() {
             <Interruptor activo={form.cuotas} onClick={() => cambiar({ cuotas: !form.cuotas })}>Mostrar el precio dividido en 3</Interruptor>
           </Seccion>
 
-          <Seccion id="portada" visible={seccion === 'portada'} titulo="Portada">
+          <Seccion id="portada" visible={seccion === 'contenido'} titulo="Portada">
             <Campo etiqueta="Anuncio de la barra superior">
               <input className={campo} value={form.marquesina} maxLength={180} placeholder="Un aviso corto para quien entra a la tienda" onChange={(event) => cambiar({ marquesina: event.target.value })} />
             </Campo>
@@ -566,7 +631,7 @@ export default function Vidriera() {
               <div className="flex flex-wrap items-center gap-2 border-t border-line px-3 py-2">
                 <label className={`rounded-xl bg-fill px-3 py-1.5 text-xs font-bold text-white ${(subiendo || form.portadas.length >= 8) ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}>
                   {subiendo ? 'Subiendo…' : 'Subir foto'}
-                  <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={subiendo || form.portadas.length >= 8} onChange={subirPortada} />
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={subiendo || form.portadas.length >= 8} onChange={subirPortada} />
                 </label>
                 <span className="text-[11px] text-faint">Hasta 8 fotos. Con más de una, la portada es un carrusel.</span>
               </div>
@@ -637,7 +702,7 @@ export default function Vidriera() {
             </div>
           </Seccion>
 
-          <Seccion id="tipo" visible={seccion === 'tipo'} titulo="Tipografía">
+          <Seccion id="tipo" visible={seccion === 'estilo'} titulo="Tipografía">
             <div className="grid gap-2 sm:grid-cols-2">
               {fuentes.map(([id, nombre, detalle, css]) => (
                 <button key={id} type="button" className={`rounded-2xl border p-3 text-left ${form.fuente === id ? 'border-accent bg-accent-soft' : 'border-line'}`} onClick={() => cambiar({ fuente: id })}>
@@ -647,6 +712,32 @@ export default function Vidriera() {
               ))}
             </div>
           </Seccion>
+            </fieldset>
+          </div>
+          <div className="vidriera-edicion-pie">
+            <div className="vidriera-opciones">
+              {sucio && <button type="button" disabled={ocupado} onClick={() => {
+                setForm(base);
+                setAnticipada('');
+                setAviso('');
+                setError('');
+              }}>Descartar cambios</button>}
+              {!form.publicada && <button type="button" disabled={ocupado || !form.titulo.trim()} onClick={() => guardar(false)}>Guardar sin publicar</button>}
+            </div>
+            <div className="vidriera-publicar-compacto">{estadoCambios}{publicar}</div>
+          </div>
+        </section>
+        <section className="vidriera-previa" aria-label="Vista previa">
+          <div className="vidriera-previa-barra">
+            <h2><Ojo />Vista previa</h2>
+            <div className="vidriera-segmentos" role="group" aria-label="Ancho de la tienda">
+              <button type="button" aria-pressed={dispositivo === 'escritorio'} onClick={() => setDispositivo('escritorio')}><Pantalla />Escritorio</button>
+              <button type="button" aria-pressed={dispositivo === 'movil'} onClick={() => setDispositivo('movil')}><Celular />Celular</button>
+            </div>
+          </div>
+          {aplicar}
+          <VistaPrevia tienda={borrador} dispositivo={dispositivo} />
+        </section>
       </div>
     </div>
   );
@@ -655,7 +746,7 @@ export default function Vidriera() {
 function Seccion({ id, titulo, visible, children }) {
   if (!visible) return null;
   return (
-    <section id={id} className="space-y-3 rounded-2xl border border-line/90 bg-card p-4 shadow-sm">
+    <section id={id} className="space-y-3 rounded-xl border border-line bg-card p-4">
       <h2 className="text-base font-black text-ink">{titulo}</h2>
       {children}
     </section>
@@ -673,7 +764,7 @@ function Campo({ etiqueta, children }) {
 
 function Interruptor({ activo, onClick, children }) {
   return (
-    <button type="button" className="flex items-center justify-between gap-3 rounded-xl bg-sunken px-3 py-2 text-left text-sm font-semibold text-ink" onClick={onClick}>
+    <button type="button" role="switch" aria-checked={activo} className="flex items-center justify-between gap-3 rounded-xl bg-sunken px-3 py-2 text-left text-sm font-semibold text-ink" onClick={onClick}>
       {children}
       <span className={`relative h-6 w-11 rounded-full ${activo ? 'bg-fill' : 'bg-raise'}`}>
         <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-card transition-all ${activo ? 'left-5' : 'left-0.5'}`} />
@@ -684,272 +775,106 @@ function Interruptor({ activo, onClick, children }) {
 
 const campo = 'w-full rounded-xl border border-line bg-sunken px-3 py-2 text-sm text-ink outline-none focus:border-accent';
 
-function Preview({ form, productos, rubros, dispositivo, onDispositivo, anticipada, seccion }) {
-  const [buscar, setBuscar] = useState('');
-  const [categoria, setCategoria] = useState('Todas');
-  const [publico, setPublico] = useState('');
-  const [soloSinMarca, setSoloSinMarca] = useState(false);
-  const [pagina, setPagina] = useState('inicio');
-  const [ficha, setFicha] = useState(null);
-  const [abierto, setAbierto] = useState(false);
-  useEffect(() => {
-    setFicha(null);
-    setPagina(seccion === 'catalogo' ? 'productos' : 'inicio');
-  }, [seccion]);
-  const movil = dispositivo !== 'tablet';
-  const plantillaVista = anticipada || form.plantillaId || 'giro';
-  const marcoPlantilla = plantillaVista !== 'giro';
-  const css = fuentes.find((item) => item[0] === form.fuente)?.[3] || 'Inter, sans-serif';
-  const fondo = fondos.find((item) => item[0] === form.fondo)?.[2] || '#FFFFFF';
-  const tinta = form.texto === 'claro' ? '#F8FAFC' : '#0F172A';
-  const suave = form.texto === 'claro' ? 'rgba(248,250,252,0.72)' : '#64748B';
-  const lugar = [form.localidad, form.partido].filter(Boolean).join(', ');
-  const enlace = form.slug ? urlVidriera(form.slug) : '';
-  const visibles = productos.filter((item) => {
-    const texto = buscar.trim().toLowerCase();
-    const entra = !texto || `${item.nombre} ${item.sku || ''}`.toLowerCase().includes(texto);
-    if (!entra) return false;
-    if (pagina === 'carrito') return true;
-    if (publico && item.publico !== publico) return false;
-    if (soloSinMarca && item.publico) return false;
-    return categoria === 'Todas' || item.categoria === categoria;
-  }).slice(0, movil ? 4 : 6);
-  const destacados = form.mostrarRubros ? (form.rubros || []).map((id) => rubros.find((item) => String(item.id) === String(id))).filter(Boolean) : [];
-  const oscuro = form.texto === 'claro';
-  const superficie = oscuro ? 'rgba(255,255,255,0.06)' : '#FFFFFF';
-  const precio = colorLegible(form.color, oscuro);
-  const borde = oscuro ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.08)';
+function VistaPrevia({ tienda, dispositivo }) {
+  const marco = useRef(null);
+  function actualizar() {
+    marco.current?.contentWindow?.postMessage({ tipo: 'giro-vista-tienda', tienda }, window.location.origin);
+  }
 
-  async function copiar() {
-    if (!enlace) return;
-    await navigator.clipboard.writeText(enlace);
+  useEffect(actualizar, [tienda]);
+
+  return <iframe ref={marco} src={import.meta.env.BASE_URL + 'vista-tienda.html'} title="Vista previa interactiva de la tienda"
+    className="vidriera-marco" data-dispositivo={dispositivo} onLoad={actualizar} />;
+}
+
+function useFotosPrivadas(productos, sinPublicar) {
+  const [fotos, setFotos] = useState({});
+
+  useEffect(() => {
+    if (!sinPublicar) return;
+    const controller = new AbortController();
+    const urls = [];
+
+    // Las fotos antiguas sin URL directa requieren autorización si la tienda no está publicada.
+    for (const producto of productos) {
+      const existentes = new Map((producto.fotos || []).map((foto) => [foto.id, foto.url]));
+      for (const id of producto.imagenes || []) {
+        if (existentes.get(id)) continue;
+        pedir('/api/productos/' + producto.id + '/imagenes/' + id, { signal: controller.signal })
+          .then((respuesta) => respuesta.ok ? respuesta.blob() : null)
+          .then((blob) => {
+            if (!blob || controller.signal.aborted) return;
+            const url = URL.createObjectURL(blob);
+            urls.push(url);
+            setFotos((actuales) => ({ ...actuales, [id]: url }));
+          })
+          .catch(() => {});
+      }
+    }
+
+    return () => {
+      controller.abort();
+      urls.forEach((url) => URL.revokeObjectURL(url));
+      setFotos({});
+    };
+  }, [productos, sinPublicar]);
+
+  return useMemo(() => {
+    if (!sinPublicar) return productos;
+    return productos.map((producto) => {
+      const existentes = new Map((producto.fotos || []).map((foto) => [foto.id, foto.url]));
+      if (!producto.imagenes?.some((id) => fotos[id])) return producto;
+      return { ...producto, fotos: producto.imagenes.map((id) => ({ id, url: existentes.get(id) || fotos[id] })) };
+    });
+  }, [productos, sinPublicar, fotos]);
+}
+
+function Miniatura({ plantilla }) {
+  const recorte = recortes[plantilla.id];
+  if (recorte) {
+    const [x, y] = recorte;
+    return <span className="vidriera-miniatura" aria-hidden="true" style={{
+      backgroundImage: 'url(' + referencias + ')',
+      backgroundSize: (707 / 91 * 100) + '% ' + (445 / 102 * 100) + '%',
+      backgroundPosition: (x / (707 - 91) * 100) + '% ' + (y / (445 - 102) * 100) + '%',
+    }} />;
   }
 
   return (
-    <aside className="space-y-2 rounded-2xl border border-line/90 bg-card p-2 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 text-sm font-black text-ink"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />Vista previa</h2>
-        <div className="flex rounded-xl bg-sunken p-1">
-          {[['movil', 'Móvil'], ['tablet', 'Tablet']].map(([id, etiqueta]) => (
-            <button key={id} type="button" className={`rounded-lg px-3 py-1 text-xs font-bold transition-all ${dispositivo === id ? 'bg-card text-ink shadow-sm' : 'text-muted'}`} onClick={() => onDispositivo(id)}>{etiqueta}</button>
-          ))}
-        </div>
-        {enlace && <button type="button" className="text-xs font-bold text-accent" onClick={copiar}>Copiar enlace</button>}
-        {enlace && <a className="text-xs font-bold text-accent" href={enlace} target="_blank" rel="noreferrer">Abrir</a>}
-      </div>
-
-      {anticipada && anticipada !== form.plantillaId && <p className="text-[11px] text-muted">Vista previa de {plantillaDe(anticipada).nombre}. Tocá Usar plantilla para quedártela.</p>}
-      <div className={`relative mx-auto overflow-hidden shadow-xl transition-all duration-300 ${dispositivo === 'tablet' ? 'h-[168px] w-full' : 'h-[210px] w-[min(100%,220px)] rounded-[22px]'}`} style={{ background: fondo, color: tinta, fontFamily: css }}>
-        {form.marquesina && !marcoPlantilla && <p className="truncate px-3 py-1.5 text-center text-[10px] font-semibold tracking-wide text-white" style={{ background: form.color }}>{form.marquesina}</p>}
-        {marcoPlantilla ? (
-          <Tienda
-            anclado
-            persistir={false}
-            dispositivo={movil ? 'movil' : 'escritorio'}
-            vista={seccion === 'catalogo' ? 'productos' : 'inicio'}
-            tienda={{
-              ...form,
-              plantillaId: plantillaVista,
-              ...(anticipada && anticipada !== form.plantillaId && !form.estiloPropio ? {
-                color: plantillaDe(anticipada).color,
-                fondo: plantillaDe(anticipada).fondo,
-                texto: plantillaDe(anticipada).texto,
-                fuente: plantillaDe(anticipada).fuente,
-              } : {}),
-              productos: productos.map((item) => ({ ...item, foto: urlFoto(item) })),
-            }}
-          />
-        ) : form.tema === 'barrio' ? <PreviewBarrio form={form} productos={productos} movil={movil} fondo={fondo} /> : <>
-        <BarraMenu form={form} detalle={form.estado || lugar} productos={productos} tinta={tinta} suave={suave} borde={borde} movil={movil} pagina={pagina} categoria={categoria} publico={publico} onPagina={(id) => { setFicha(null); setPagina(id); }} onCategoria={setCategoria} onPublico={setPublico} onSinMarca={setSoloSinMarca} abierto={abierto} onAbierto={setAbierto} />
-        {ficha && <DetalleMini amplia={!movil} item={ficha} form={form} productos={productos} tinta={tinta} suave={suave} borde={borde} precio={precio} oscuro={oscuro} onVolver={() => setFicha(null)} onAbrir={setFicha} />}
-        {!ficha && pagina === 'productos' && (
-          <div className="mx-3 mt-2 flex items-center gap-1.5 rounded-full border px-2.5 py-1.5" style={{ borderColor: borde, background: oscuro ? 'rgba(255,255,255,0.06)' : '#fff' }}>
-            <LupaMini />
-            <input className="w-full bg-transparent text-[11px] outline-none" style={{ color: tinta }} placeholder={form.buscar || 'Buscar en la tienda'} value={buscar} onChange={(event) => setBuscar(event.target.value)} />
-          </div>
-        )}
-        {!ficha && pagina === 'inicio' && (
-          <div className="flex flex-col gap-2 px-3 pt-2">
-            <div className={`${movil ? 'mx-3 mt-2' : 'col-start-1'} flex items-center gap-1.5 rounded-full border px-2.5 py-1.5`} style={{ borderColor: borde, background: oscuro ? 'rgba(255,255,255,0.06)' : '#fff' }}>
-              <LupaMini />
-              <input className="w-full bg-transparent text-[11px] outline-none" style={{ color: tinta }} placeholder={form.buscar || 'Buscar en la tienda'} value={buscar} onChange={(event) => setBuscar(event.target.value)} />
-            </div>
-            <div className={movil ? '' : 'col-start-1'}><FichaMini form={form} tinta={tinta} suave={suave} lugar={lugar} oscuro={oscuro} /></div>
-            <Portada form={form} tinta={tinta} suave={suave} amplia={!movil} />
-            {destacados.length > 0 && (
-          form.rubroForma === 'pastilla' ? (
-            <div className={movil ? 'px-3 pt-3' : 'col-start-1 pt-3'}>
-              <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                <p className="text-[11px] font-black" style={{ color: tinta }}>{form.explorar || 'Explorar'}</p>
-                <p className="text-[9px]" style={{ color: suave }}>{destacados.length} categorías</p>
-              </div>
-              <div className="flex gap-1.5 overflow-x-auto">
-                <button type="button" className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold" style={pastillaPreview(categoria === 'Todas', form)} onClick={() => { setPagina('inicio'); setCategoria('Todas'); setPublico(''); setSoloSinMarca(false); }}>Todas</button>
-                {destacados.map((item) => (
-                  <button key={item.id} type="button" className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold" style={pastillaPreview(categoria === item.nombre, form)} onClick={() => { setPagina('inicio'); setCategoria(item.nombre); setPublico(''); setSoloSinMarca(false); }}>{item.nombre}</button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className={`flex flex-wrap justify-center gap-4 py-3 ${movil ? 'px-3' : 'col-start-1'}`}>
-              {destacados.map((item) => (
-                <button key={item.id} type="button" className="flex w-20 flex-col items-center gap-1.5 text-center text-[11px] font-medium tracking-wide" style={{ color: tinta, fontFamily: css }} onClick={() => { setPagina('inicio'); setCategoria(item.nombre); setPublico(''); setSoloSinMarca(false); }}>
-                  <IconoRubro nombre={item.nombre} color={form.rubroColor || form.color} forma={form.rubroForma} />
-                  {item.nombre}
-                </button>
-              ))}
-            </div>
-          )
-        )}
-            {form.aviso && (
-          <p className={`mt-2 flex items-start gap-1.5 text-[10px] ${movil ? 'mx-3' : 'col-start-1'}`} style={{ color: suave }}>
-            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: form.color }} />
-            {form.aviso}
-          </p>
-            )}
-          </div>
-        )}
-        {!ficha && pagina === 'inicio' && (form.secciones || []).map((seccion) => {
-          if (seccion.tipo === 'texto') {
-            if (!seccion.titulo && !seccion.texto) return null;
-            return (
-              <div key={seccion.id} className="px-3 pt-3">
-                {seccion.titulo && <p className="text-sm font-black" style={{ color: tinta }}>{seccion.titulo}</p>}
-                {seccion.texto && <p className="text-[11px]" style={{ color: suave }}>{seccion.texto}</p>}
-              </div>
-            );
-          }
-          const categoria = rubros.find((item) => String(item.id) === String(seccion.categoriaId));
-          const prendas = categoria ? productos.filter((item) => item.categoria === categoria.nombre).slice(0, 4) : [];
-          if (!categoria) return null;
-          return (
-            <div key={seccion.id} className="px-3 pt-3">
-              <p className="mb-2 text-sm font-black" style={{ color: tinta }}>{seccion.titulo || categoria.nombre}</p>
-              {prendas.length === 0 ? <p className="text-[11px]" style={{ color: suave }}>No hay prendas publicadas en esta categoría.</p> : (
-                <div className={`grid gap-2.5 ${movil ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                  {prendas.map((item) => <Tarjeta key={item.id} item={item} form={form} tinta={tinta} suave={suave} superficie={superficie} precioColor={precio} borde={borde} onAbrir={() => setFicha(item)} />)}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {!ficha && <div className="space-y-3 px-3 py-3">
-          {pagina === 'carrito' ? (
-            <CarritoMini amplia={!movil} form={form} productos={productos} tinta={tinta} suave={suave} borde={borde} precio={precio} oscuro={oscuro} onAbrir={setFicha} />
-          ) : visibles.length === 0 ? (
-            <p className="rounded-xl px-3 py-6 text-center text-xs" style={{ color: suave }}>No hay prendas publicadas para esta búsqueda.</p>
-          ) : (
-            <div className={form.catalogo === 'lista' ? 'space-y-2' : `grid gap-2.5 ${movil ? 'grid-cols-2' : 'grid-cols-3'}`}>
-              {visibles.map((item) => <Tarjeta key={item.id} item={item} form={form} tinta={tinta} suave={suave} superficie={superficie} precioColor={precio} borde={borde} onAbrir={() => setFicha(item)} />)}
-            </div>
-          )}
-        </div>}
-        </>}
-      </div>
-    </aside>
+    <span className="vidriera-miniatura vidriera-miniatura-esquema" aria-hidden="true"
+      data-portada={plantilla.portada} data-catalogo={plantilla.catalogo}
+      style={{ '--mini-papel': fondos.find(([id]) => id === plantilla.fondo)[2], '--mini-acento': plantilla.color }}>
+      <span className="vidriera-miniatura-marca">{plantilla.ejemplo}</span>
+      {plantilla.secciones[0] === 'busqueda' && <span className="vidriera-miniatura-buscar">Buscar productos</span>}
+      <span className="vidriera-miniatura-portada"><b>{plantilla.ejemplo}</b><small>Ver productos</small></span>
+      <span className="vidriera-miniatura-catalogo"><i /><i /><i /></span>
+    </span>
   );
 }
 
-function PreviewBarrio({ form, productos, movil, fondo }) {
-  const [pagina, setPagina] = useState('inicio');
-  const [categoria, setCategoria] = useState('Todas');
-  const [fav, setFav] = useState([]);
-  const acento = form.color || '#7C2F3B';
-  const tinta = form.texto === 'claro' ? '#F6F1E8' : '#1A1614';
-  const n = String(acento).replace('#', '');
-  const luma = n.length === 6 ? (parseInt(n.slice(0, 2), 16) * 299 + parseInt(n.slice(2, 4), 16) * 587 + parseInt(n.slice(4, 6), 16) * 114) / 1000 : 0;
-  const sobre = luma > 160 ? '#1A1614' : '#FFFFFF';
-  const categorias = [...new Set(productos.map((item) => item.categoria).filter(Boolean))];
-  const portada = (form.portadas && form.portadas[0]) || form.portadaUrl || '';
-  const lista = pagina === 'favoritos'
-    ? productos.filter((item) => fav.includes(item.id))
-    : productos.filter((item) => categoria === 'Todas' || item.categoria === categoria);
-  const visibles = (pagina === 'inicio' ? productos : lista).slice(0, movil ? 2 : 3);
-  const display = { fontFamily: 'Oswald, Impact, sans-serif' };
-  return (
-    <div style={{ background: fondo, color: tinta }}>
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <button type="button" className="text-left text-[11px] font-bold uppercase leading-none tracking-wide" style={display} onClick={() => setPagina('inicio')}>{form.titulo || 'Tienda'}</button>
-        {movil ? (
-          <span className="flex items-center gap-2" style={{ color: tinta }}>
-            <button type="button" aria-label="Favoritos" onClick={() => setPagina('favoritos')}>♡</button>
-            <button type="button" aria-label="Carrito" onClick={() => setPagina('carrito')}><BolsaMini /></button>
-          </span>
-        ) : (
-          <span className="flex gap-2 text-[10px] font-semibold">
-            {[['inicio', 'Inicio'], ['productos', 'Productos'], ['favoritos', 'Favoritos'], ['carrito', 'Carrito']].map(([id, etiqueta]) => (
-              <button key={id} type="button" className="border-b-2 pb-0.5" style={{ borderColor: pagina === id ? acento : 'transparent' }} onClick={() => setPagina(id)}>{etiqueta}</button>
-            ))}
-          </span>
-        )}
-      </div>
-      {pagina === 'inicio' && (
-        <div className={`${movil ? 'px-3' : 'grid grid-cols-[0.9fr_1.1fr] items-center gap-4 px-4'} pb-3`}>
-          <div>
-            <p className={`${movil ? 'text-[28px]' : 'text-[40px]'} font-bold uppercase leading-[0.88]`} style={display}>{form.heroTitulo || form.titulo || 'Tu vidriera'}</p>
-            {(form.heroTexto || form.descripcion) && <p className="mt-2 line-clamp-2 text-[12px] leading-snug">{form.heroTexto || form.descripcion}</p>}
-            <button type="button" className="mt-3 rounded-lg px-3 py-2 text-[12px] font-bold" style={{ background: acento, color: sobre }} onClick={() => setPagina('productos')}>{form.heroCta || 'Ver productos'}</button>
-          </div>
-          {form.hero !== 'ninguno' && form.hero !== 'tipografico' && (
-            <div className={`${movil ? 'mt-3 h-40' : 'h-52'} rounded-2xl bg-cover bg-center`} style={{ backgroundImage: portada ? `url(${portada})` : undefined, backgroundColor: portada ? undefined : `${acento}18` }} />
-          )}
-        </div>
-      )}
-      {pagina === 'productos' && (
-        <div className="flex flex-wrap gap-1 px-3 pb-2">
-          <button type="button" className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: categoria === 'Todas' ? acento : 'transparent', color: categoria === 'Todas' ? sobre : tinta, border: `1px solid ${categoria === 'Todas' ? acento : tinta}` }} onClick={() => setCategoria('Todas')}>Todos</button>
-          {categorias.slice(0, 3).map((item) => (
-            <button key={item} type="button" className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: categoria === item ? acento : 'transparent', color: categoria === item ? sobre : tinta, border: `1px solid ${categoria === item ? acento : tinta}` }} onClick={() => setCategoria(item)}>{item}</button>
-          ))}
-        </div>
-      )}
-      {pagina === 'carrito' ? (
-        <div className="px-3 py-4">
-          <p className="text-2xl font-bold uppercase leading-none" style={display}>Tu carrito</p>
-          <p className="mt-2 text-[11px] opacity-70">El resumen del pedido aparece acá, con el total en el color de acento.</p>
-          <p className="mt-2 text-sm font-black" style={{ color: acento }}>{pesos(productos.reduce((suma, item) => suma + Number(item.precio || 0), 0))}</p>
-        </div>
-      ) : (
-        <div className="px-3 pb-3">
-          {pagina !== 'productos' && <p className="mb-2 text-sm font-bold uppercase" style={display}>{pagina === 'favoritos' ? 'Tus favoritos' : 'Productos destacados'}</p>}
-          {visibles.length === 0 ? <p className="py-4 text-[11px] opacity-70">{pagina === 'favoritos' ? 'Todavía no hay favoritos.' : 'No hay productos publicados.'}</p> : (
-            <div className={`grid gap-2 ${movil ? 'grid-cols-2' : 'grid-cols-3'}`}>
-              {visibles.map((item) => (
-                <article key={item.id}>
-                  <span className="block aspect-[4/5] overflow-hidden rounded-2xl bg-[#F7F5F2]">
-                    {urlFoto(item) ? <img src={urlFoto(item)} alt="" className="h-full w-full object-contain p-2" /> : <FotoBlob id={item.id} imagen={item.imagenes?.[0]} nombre={item.nombre} />}
-                  </span>
-                  <span className="mt-1 flex items-start justify-between gap-1">
-                    <span>
-                      <span className="block truncate text-[11px] font-semibold">{item.nombre}</span>
-                      <span className="block text-[11px] font-bold" style={{ color: acento }}>{pesos(item.precioVigente ?? item.precio)}</span>
-                    </span>
-                    <button type="button" aria-label="Favorito" className="text-[12px]" style={{ color: acento }} onClick={() => setFav((actual) => actual.includes(item.id) ? actual.filter((id) => id !== item.id) : [...actual, item.id])}>{fav.includes(item.id) ? '♥' : '♡'}</button>
-                  </span>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      {movil && (
-        <div className="grid grid-cols-4 border-t text-[9px] font-semibold" style={{ borderColor: `${tinta}22` }}>
-          {[['inicio', 'Inicio'], ['productos', 'Productos'], ['favoritos', 'Favoritos'], ['carrito', 'Carrito']].map(([id, etiqueta]) => (
-            <button key={id} type="button" className="py-2" style={{ color: pagina === id ? acento : `${tinta}88` }} onClick={() => setPagina(id)}>{etiqueta}</button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function estiloPlantilla(form, plantilla) {
+  if (form.estiloPropio) return {};
+  const { color, fondo, texto, fuente } = plantilla;
+  return { color, fondo, texto, fuente };
 }
 
-function BolsaMini() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M6 8h12l-1 12H7L6 8z" />
-      <path d="M9 8V7a3 3 0 0 1 6 0v1" />
-    </svg>
-  );
+function Ventana() {
+  return <Icono><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /></Icono>;
+}
+function Imagen() {
+  return <Icono><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m3 16 4-3 3 2 5-5 6 6" /></Icono>;
+}
+function Ojo() {
+  return <Icono><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" /></Icono>;
+}
+function Pantalla() {
+  return <Icono><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M12 17v4m-5 0h10" /></Icono>;
+}
+function Celular() {
+  return <Icono><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" /></Icono>;
+}
+function Externo() {
+  return <Icono><path d="M13 4h7v7m0-7-9 9m7 0v7H4V6h7" /></Icono>;
 }
 
 function claseForma(forma, grande) {
@@ -958,347 +883,8 @@ function claseForma(forma, grande) {
   return 'rounded-full';
 }
 
-function Avatar({ logo, nombre, color, forma, chico }) {
-  const medida = chico ? 'h-6 w-6 text-[9px]' : 'h-7 w-7 text-[10px]';
-  const radio = claseForma(forma);
-  if (logo) return <img src={logo} alt="" className={`${medida} shrink-0 object-cover ${radio}`} />;
-  return <span className={`grid ${medida} shrink-0 place-items-center font-black text-white ${radio}`} style={{ background: color }}>{iniciales(nombre)}</span>;
-}
-
-function menuPublico(productos) {
-  const hombre = [];
-  const mujer = [];
-  const sueltos = [];
-  const sumar = (lista, nombre) => { if (nombre && !lista.includes(nombre)) lista.push(nombre); };
-  for (const item of productos || []) {
-    if (item.publico === 'hombre') sumar(hombre, item.categoria);
-    else if (item.publico === 'mujer') sumar(mujer, item.categoria);
-    else sumar(sueltos, item.categoria);
-  }
-  return { hombre, mujer, sueltos };
-}
-
-function BarraMenu({ form, detalle, productos, tinta, suave, borde, movil, pagina, categoria, publico, onPagina, onCategoria, onPublico, onSinMarca, abierto, onAbierto }) {
-  const modo = form.menu || 'lados';
-  const menu = menuPublico(productos);
-  const paginas = [['inicio', 'Inicio'], ['productos', 'Productos'], ['carrito', 'Carrito']];
-  const ir = (id, filtro) => {
-    onPagina(id);
-    onAbierto(false);
-    onCategoria(filtro?.categoria || 'Todas');
-    onPublico(filtro?.publico || '');
-    onSinMarca(Boolean(filtro?.soloSinMarca));
-  };
-  const links = (
-    <span className={`items-center gap-2 ${movil ? 'hidden' : 'flex'}`}>
-      {paginas.map(([id, etiqueta]) => (
-        <button key={id} type="button" className="text-[11px] font-bold" style={{ color: pagina === id && !publico ? form.color : tinta }} onClick={() => ir(id)}>{etiqueta}</button>
-      ))}
-      {menu.hombre.length > 0 && <button type="button" className="text-[11px] font-bold" style={{ color: publico === 'hombre' ? form.color : tinta }} onClick={() => ir('productos', { publico: 'hombre' })}>Hombre</button>}
-      {menu.mujer.length > 0 && <button type="button" className="text-[11px] font-bold" style={{ color: publico === 'mujer' ? form.color : tinta }} onClick={() => ir('productos', { publico: 'mujer' })}>Mujer</button>}
-      {menu.sueltos.map((item) => (
-        <button key={item} type="button" className="text-[11px] font-bold" style={{ color: categoria === item && !publico ? form.color : tinta }} onClick={() => ir('productos', { categoria: item, soloSinMarca: true })}>{item}</button>
-      ))}
-    </span>
-  );
-  const nombre = (
-    <span className="min-w-0">
-      <span className="block truncate text-xs font-black leading-tight">{form.titulo || 'Sin nombre'}</span>
-      {detalle && <span className="block truncate text-[9px] font-semibold" style={{ color: suave }}>{detalle}</span>}
-    </span>
-  );
-  const marca = (
-    <span className="flex min-w-0 items-center gap-1.5">
-      <Avatar logo={form.logoUrl} nombre={form.titulo} color={form.color} forma={form.logoForma} />
-      {modo !== 'esquinas' && nombre}
-    </span>
-  );
-  const bolsa = <button type="button" aria-label="Carrito" className="grid h-7 w-7 place-items-center" style={{ color: tinta }} onClick={() => ir('carrito')}><BolsaMini /></button>;
-  const burger = movil && (
-    <button type="button" className="grid h-7 w-7 place-items-center rounded-lg border text-sm" style={{ borderColor: borde, color: tinta }} aria-label={abierto ? 'Cerrar menú' : 'Abrir menú'} onClick={() => onAbierto(!abierto)}>{abierto ? '×' : '☰'}</button>
-  );
-  let barra;
-  if (modo === 'centro') barra = <div className="flex flex-wrap items-center justify-center gap-2 px-2 py-2">{burger}{marca}{links}{bolsa}</div>;
-  else if (modo === 'esquinas') {
-    barra = (
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-2 py-2">
-        <span className="flex items-center gap-1">{burger}<Avatar logo={form.logoUrl} nombre={form.titulo} color={form.color} forma={form.logoForma} /></span>
-        <span className="min-w-0 text-center">{nombre}</span>
-        <span className="flex items-center gap-2">{links}{bolsa}</span>
-      </div>
-    );
-  } else barra = <div className="flex items-center justify-between gap-2 px-2 py-2">{burger}{marca}<span className="flex items-center gap-2">{links}{bolsa}</span></div>;
-  return (
-    <div className="border-b" style={{ borderColor: borde }}>
-      {barra}
-      {movil && abierto && (
-        <div className="space-y-1 px-3 pb-3">
-          {paginas.map(([id, etiqueta]) => (
-            <button key={id} type="button" className="block w-full py-1 text-left text-xs font-bold" style={{ color: pagina === id && !publico ? form.color : tinta }} onClick={() => ir(id)}>{etiqueta}</button>
-          ))}
-          {menu.hombre.length > 0 && (
-            <details className="pt-1">
-              <summary className="cursor-pointer text-xs font-bold" style={{ color: publico === 'hombre' ? form.color : tinta }}>Hombre</summary>
-              <button type="button" className="block py-1 pl-3 text-left text-[11px]" style={{ color: tinta }} onClick={() => ir('productos', { publico: 'hombre' })}>Todo hombre</button>
-              {menu.hombre.map((item) => <button key={item} type="button" className="block py-1 pl-3 text-left text-[11px]" style={{ color: tinta }} onClick={() => ir('productos', { categoria: item, publico: 'hombre' })}>{item}</button>)}
-            </details>
-          )}
-          {menu.mujer.length > 0 && (
-            <details className="pt-1">
-              <summary className="cursor-pointer text-xs font-bold" style={{ color: publico === 'mujer' ? form.color : tinta }}>Mujer</summary>
-              <button type="button" className="block py-1 pl-3 text-left text-[11px]" style={{ color: tinta }} onClick={() => ir('productos', { publico: 'mujer' })}>Todo mujer</button>
-              {menu.mujer.map((item) => <button key={item} type="button" className="block py-1 pl-3 text-left text-[11px]" style={{ color: tinta }} onClick={() => ir('productos', { categoria: item, publico: 'mujer' })}>{item}</button>)}
-            </details>
-          )}
-          {menu.sueltos.map((item) => (
-            <button key={item} type="button" className="block w-full py-1 text-left text-xs font-bold" style={{ color: tinta }} onClick={() => ir('productos', { categoria: item, soloSinMarca: true })}>{item}</button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function claseRubro(forma) {
   if (forma === 'recto') return 'rounded-none';
   if (forma === 'redondeado') return 'rounded-xl';
   return 'rounded-full';
-}
-
-function IconoRubro({ nombre, color, forma }) {
-  return (
-    <span className={`grid h-10 w-10 place-items-center ${claseRubro(forma)}`} style={{ background: `${color}22`, color }}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-        {trazoRubro(nombre)}
-      </svg>
-    </span>
-  );
-}
-
-function trazoRubro(nombre) {
-  const texto = String(nombre || '').toLowerCase();
-  if (/zapato|zapatilla|calzado|bota|borcego/.test(texto)) return <path d="M4 16c2-4 4-6 8-6h6v3c0 2-2 3-4 3H6c-1 0-2-1-2-2z" />;
-  if (/jean|pantal/.test(texto)) return <path d="M8 4h8l1 16h-3l-2-8-2 8H7L8 4z" />;
-  if (/campera|abrigo|camisa/.test(texto)) return <path d="M8 6 4 9v4l3-1v8h10v-8l3 1V9l-4-3-2 2h-2L8 6z" />;
-  if (/buzo|sweater|hoodie/.test(texto)) return <path d="M8 6h8v3h3v9h-4v-5H9v5H5V9h3V6z" />;
-  if (/remera|top|musculosa/.test(texto)) return <path d="M8 5h8l3 3v3h-3v8H8v-8H5V8l3-3z" />;
-  return <path d="M12 3v18M8 7h8M9 21h6" />;
-}
-
-function LupaMini() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  );
-}
-
-function pastillaPreview(activa, form) {
-  return {
-    background: activa ? form.color : `color-mix(in srgb, ${form.color} 14%, transparent)`,
-    color: activa ? '#fff' : 'inherit',
-  };
-}
-
-function FichaMini({ form, tinta, suave, lugar, oscuro }) {
-  if (!form.descripcion && !form.sello && !form.etiqueta) return null;
-  const fondo = `color-mix(in srgb, ${form.color} ${oscuro ? '24%' : '12%'}, ${oscuro ? '#111827' : '#ffffff'})`;
-  const segunda = form.estado && lugar ? lugar : '';
-  return (
-    <section className="mx-3 mt-2 rounded-2xl p-2.5" style={{ background: fondo, color: tinta }}>
-      <div className="flex items-start justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <Avatar logo={form.logoUrl} nombre={form.titulo} color={form.color} forma={form.logoForma} chico />
-          <span className="min-w-0">
-            <span className="block truncate text-[10px] font-black uppercase tracking-wide">{form.titulo || 'Tu vidriera'}</span>
-            <span className="mt-1 flex flex-wrap gap-1">
-              {form.etiqueta && <span className="rounded-full px-1.5 py-0.5 text-[8px] font-bold" style={{ background: `color-mix(in srgb, ${form.color} 18%, transparent)` }}>{form.etiqueta}</span>}
-              {segunda && <span className="rounded-full px-1.5 py-0.5 text-[8px] font-bold" style={{ background: `color-mix(in srgb, ${form.color} 18%, transparent)` }}>{segunda}</span>}
-            </span>
-          </span>
-        </span>
-        {form.sello && <span className="shrink-0 rounded-full px-1.5 py-1 text-[8px] font-bold text-white" style={{ background: form.color }}>{form.sello}</span>}
-      </div>
-      {form.descripcion && <p className="mt-1.5 text-[10px] leading-snug" style={{ color: suave }}>{form.descripcion}</p>}
-    </section>
-  );
-}
-
-function CopiaPortada({ form, clara }) {
-  if (!form.heroEtiqueta && !form.heroTitulo && !form.heroTexto && !form.heroCta) return null;
-  return (
-    <div className={`absolute inset-0 flex flex-col justify-end p-3 ${clara ? 'bg-gradient-to-t from-black/75 via-black/25 to-black/10 text-white' : ''}`}>
-      {form.heroEtiqueta && <span className="mb-1 w-fit rounded-full bg-white/20 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider">{form.heroEtiqueta}</span>}
-      {form.heroTitulo && <p className="text-[13px] font-black leading-tight">{form.heroTitulo}</p>}
-      {form.heroTexto && <p className="text-[9px] leading-snug text-white/80">{form.heroTexto}</p>}
-      {form.heroCta && <span className="mt-1.5 w-fit rounded-full bg-white px-2 py-0.5 text-[9px] font-bold text-black">{form.heroCta} →</span>}
-    </div>
-  );
-}
-
-function Portada({ form, tinta, suave, amplia }) {
-  if (form.hero === 'ninguno') return null;
-  const radio = Math.max(Number(form.radio) || 0, 16);
-  const esFoto = form.hero === 'foto' && form.portadaUrl;
-  if (form.hero === 'tipografico') {
-    return (
-      <div className={amplia ? 'col-start-2 row-start-1 row-span-4' : 'mx-3 mt-3'}>
-        {form.heroEtiqueta && <p className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: suave }}>{form.heroEtiqueta}</p>}
-        <p className="text-base font-black leading-tight" style={{ color: tinta }}>{form.heroTitulo || form.titulo || 'Tu vidriera'}</p>
-        {form.heroTexto && <p className="text-[10px]" style={{ color: suave }}>{form.heroTexto}</p>}
-      </div>
-    );
-  }
-  if (form.hero === 'foto' && !esFoto) {
-    return <p className={`px-4 py-8 text-center text-[11px] ${amplia ? 'col-start-2 row-start-1 row-span-4' : ''}`} style={{ color: suave }}>Elegí una foto para la portada.</p>;
-  }
-  const fotos = form.portadas?.length ? form.portadas : [form.portadaUrl];
-  return (
-      <div className={amplia ? 'relative order-first h-52 w-full overflow-hidden' : 'relative mx-3 mt-3 h-40 overflow-hidden'} style={{ borderRadius: radio, background: `linear-gradient(145deg, ${form.color}, #1e1b4b)` }}>
-      {esFoto && <img src={fotos[0]} alt="" className="h-full w-full object-cover" />}
-      <CopiaPortada form={form} clara />
-    </div>
-  );
-}
-
-function colorLegible(hex, oscuro) {
-  if (oscuro) return '#FFFFFF';
-  const n = String(hex || '').replace('#', '');
-  if (n.length !== 6) return '#0F172A';
-  const r = parseInt(n.slice(0, 2), 16);
-  const g = parseInt(n.slice(2, 4), 16);
-  const b = parseInt(n.slice(4, 6), 16);
-  return (r * 299 + g * 587 + b * 114) / 1000 > 170 ? '#0F172A' : hex;
-}
-
-function DetalleMini({ amplia, item, form, productos, tinta, suave, borde, precio, oscuro, onVolver, onAbrir }) {
-  const valor = Number(item.precioVigente ?? item.precio) || 0;
-  const variantes = item.usaVariantes ? (item.variantes || []).slice(0, 6) : [];
-  const foto = urlFoto(item);
-  const otros = productos.filter((otro) => otro.id !== item.id && otro.categoria && otro.categoria === item.categoria).slice(0, amplia ? 4 : 2);
-  const radio = Math.max(Number(form.radio) || 0, 14);
-  return (
-    <div className={amplia ? 'grid grid-cols-2 items-start gap-4 px-4 py-3' : 'px-3 pb-3 pt-2'}>
-      <div className={`relative overflow-hidden ${amplia ? 'h-72' : 'h-36'}`} style={{ borderRadius: radio, border: `1px solid ${borde}`, background: oscuro ? 'rgba(255,255,255,0.06)' : '#fff' }}>
-        {foto ? <img src={foto} alt="" className="h-full w-full object-cover" /> : <FotoBlob id={item.id} imagen={item.imagenes?.[0]} nombre={item.nombre} />}
-        <button type="button" className="absolute left-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-white text-[11px] font-black text-black" onClick={onVolver} aria-label="Volver">←</button>
-      </div>
-      <div>
-        {item.categoria && <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: form.color }}>{item.categoria}</p>}
-        <p className="text-sm font-black leading-tight" style={{ color: tinta }}>{item.nombre}</p>
-        {item.sku && <p className="text-[10px]" style={{ color: suave }}>{item.sku}</p>}
-        <p className="mt-1 text-base font-black" style={{ color: precio }}>{pesos(valor)}</p>
-        {form.cuotas && valor > 0 && <p className="text-[10px]" style={{ color: suave }}>3 x {pesos(valor / 3)} s/int</p>}
-        {variantes.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {variantes.map((opcion, indice) => (
-              <span key={opcion.id || opcion.nombre} className="rounded-full px-2 py-0.5 text-[9px] font-bold" style={{ background: indice === 0 ? form.color : 'transparent', color: indice === 0 ? '#fff' : tinta, border: indice === 0 ? 'none' : `1px solid ${borde}` }}>{opcion.nombre}</span>
-            ))}
-          </div>
-        )}
-        <p className="mt-2 text-[10px] font-bold" style={{ color: Number(item.stock) <= 0 ? suave : tinta }}>{Number(item.stock) <= 0 ? 'Agotado' : 'En stock'}</p>
-        <p className="mt-2 rounded-full py-1.5 text-center text-[11px] font-black text-white" style={{ background: Number(item.stock) <= 0 ? '#94a3b8' : form.color }}>{Number(item.stock) <= 0 ? 'Sin stock' : `Agregar · ${pesos(valor)}`}</p>
-      </div>
-      {otros.length > 0 && (
-        <div className={amplia ? 'col-span-2' : 'mt-3'}>
-          <p className="mb-1.5 text-[11px] font-black" style={{ color: tinta }}>También en {item.categoria}</p>
-          <div className={`grid gap-2 ${amplia ? 'grid-cols-4' : 'grid-cols-2'}`}>
-            {otros.map((otro) => <Tarjeta key={otro.id} item={otro} form={form} tinta={tinta} suave={suave} superficie="transparent" precioColor={precio} borde={borde} onAbrir={() => onAbrir(otro)} />)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CarritoMini({ amplia, form, productos, tinta, suave, borde, precio, oscuro, onAbrir }) {
-  const muestra = productos.slice(0, 2);
-  const radio = Math.max(Number(form.radio) || 0, 12);
-  if (!muestra.length) {
-    return (
-      <div className="px-2 py-6 text-center">
-        <p className="text-sm font-black" style={{ color: tinta }}>El carrito está vacío</p>
-        <p className="mt-1 text-[11px]" style={{ color: suave }}>Cuando alguien agrega un producto, lo ve así.</p>
-      </div>
-    );
-  }
-  const lineas = muestra.map((item, indice) => ({ item, cantidad: indice + 1, valor: Number(item.precioVigente ?? item.precio) || 0 }));
-  const total = lineas.reduce((suma, linea) => suma + linea.valor * linea.cantidad, 0);
-  return (
-    <div className={amplia ? 'grid grid-cols-[minmax(0,1.4fr)_minmax(180px,0.7fr)] items-start gap-4' : ''}>
-      <div className={`mb-2 flex items-baseline justify-between ${amplia ? 'col-span-2 mb-0' : ''}`}>
-        <p className="text-sm font-black" style={{ color: tinta }}>Carrito</p>
-        <p className="text-[10px]" style={{ color: suave }}>Ejemplo</p>
-      </div>
-      <div className="space-y-2">
-        {lineas.map(({ item, cantidad, valor }) => (
-          <button key={item.id} type="button" className="grid w-full grid-cols-[52px_1fr] items-center gap-2 text-left" onClick={() => onAbrir(item)}>
-            <span className="block h-[52px] overflow-hidden bg-black/5" style={{ borderRadius: radio, border: `1px solid ${borde}` }}>
-              {urlFoto(item) ? <img src={urlFoto(item)} alt="" className="h-full w-full object-cover" /> : <FotoBlob id={item.id} imagen={item.imagenes?.[0]} nombre={item.nombre} />}
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-[11px] font-bold" style={{ color: tinta }}>{item.nombre}</span>
-              <span className="mt-1 flex items-center justify-between gap-1">
-                <span className="rounded-full px-1.5 text-[10px] font-bold" style={{ border: `1px solid ${borde}`, color: tinta }}>{cantidad}</span>
-                <span className="text-[12px] font-black" style={{ color: precio }}>{pesos(valor * cantidad)}</span>
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className={`rounded-2xl p-2.5 ${amplia ? '' : 'mt-2'}`} style={{ background: `color-mix(in srgb, ${form.color} ${oscuro ? '24%' : '12%'}, ${oscuro ? '#111827' : '#fff'})` }}>
-        <p className="flex justify-between text-[10px]" style={{ color: suave }}><span>Subtotal</span><span>{pesos(total)}</span></p>
-        {form.cuotas && <p className="mt-0.5 text-[10px]" style={{ color: suave }}>o 3 cuotas de {pesos(total / 3)}</p>}
-        <p className="mt-1 flex justify-between text-xs font-black" style={{ color: tinta }}><span>Total</span><span style={{ color: precio }}>{pesos(total)}</span></p>
-      </div>
-    </div>
-  );
-}
-
-function Tarjeta({ item, form, tinta, suave, superficie, precioColor, borde, onAbrir }) {
-  const precio = Number(item.precioVigente ?? item.precio) || 0;
-  const horizontal = form.catalogo === 'lista';
-  const agotado = Number(item.stock) <= 0;
-  const foto = urlFoto(item);
-  const placa = form.texto === 'claro' ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.92)';
-  const placaTexto = form.texto === 'claro' ? '#fff' : '#0F172A';
-  return (
-    <article className={horizontal ? 'flex gap-2' : ''} onClick={onAbrir} style={{ background: 'transparent', borderRadius: form.radio, cursor: onAbrir ? 'pointer' : 'default' }}>
-      <span className={`relative block overflow-hidden bg-[#F7F5F2] ${horizontal ? 'h-20 w-20 shrink-0' : 'aspect-[4/5] w-full'}`} style={{ borderRadius: Math.max(Number(form.radio) || 0, 14) }}>
-        {foto ? <img src={foto} alt="" className="h-full w-full object-contain p-1.5" /> : <FotoBlob id={item.id} imagen={item.imagenes?.[0]} nombre={item.nombre} />}
-        {item.categoria && !agotado && <span className="absolute left-1.5 top-1.5 max-w-[80%] truncate rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ background: placa, color: placaTexto }}>{item.categoria}</span>}
-        {agotado && <span className="absolute left-1.5 top-1.5 rounded-full bg-black/75 px-1.5 py-0.5 text-[9px] font-bold text-white">Agotado</span>}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col justify-center px-0.5 py-1.5">
-        <span className="line-clamp-2 text-[11px] font-semibold leading-snug" style={{ color: tinta }}>{item.nombre}</span>
-        {item.sku && <span className="truncate text-[9px]" style={{ color: suave }}>{item.sku}</span>}
-        <span className="mt-0.5 text-[13px] font-black" style={{ color: precioColor }}>{pesos(precio)}</span>
-        {form.cuotas && precio > 0 && <span className="text-[9px]" style={{ color: suave }}>3 x {pesos(precio / 3)} s/int</span>}
-      </span>
-    </article>
-  );
-}
-
-function FotoBlob({ id, imagen, nombre }) {
-  const [url, setUrl] = useState('');
-  useEffect(() => {
-    if (!imagen) return undefined;
-    let vivo = true;
-    let objeto = '';
-    fetch(urlApi(`/api/productos/${id}/imagenes/${imagen}`), { headers: token() ? { Authorization: `Bearer ${token()}` } : {} })
-      .then((respuesta) => (respuesta.ok ? respuesta.blob() : null))
-      .then((blob) => {
-        if (!vivo || !blob) return;
-        objeto = URL.createObjectURL(blob);
-        setUrl(objeto);
-      })
-      .catch(() => {});
-    return () => {
-      vivo = false;
-      if (objeto) URL.revokeObjectURL(objeto);
-    };
-  }, [id, imagen]);
-  if (!url) return <span className="grid h-full w-full place-items-center text-xs font-black text-faint">{(nombre || '?').slice(0, 1)}</span>;
-  return <img src={url} alt="" className="h-full w-full object-cover" />;
 }

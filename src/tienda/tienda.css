@@ -1,0 +1,553 @@
+.tienda {
+  --acento: #6d28d9;
+  --papel: #ffffff;
+  --tinta: #1a1614;
+  --suave: #64748b;
+  --sobre: #ffffff;
+  --linea: rgba(26, 22, 20, 0.12);
+  --tarjeta: #ffffff;
+  --fuente: "Plus Jakarta Sans", Inter, sans-serif;
+  --display: "Plus Jakarta Sans", Inter, sans-serif;
+  min-height: 100%;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--fuente);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.tienda * { box-sizing: border-box; }
+.tienda .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+.tienda button, .tienda input { font: inherit; color: inherit; }
+.tienda button { cursor: pointer; }
+.tienda img { display: block; max-width: 100%; }
+
+.tienda-marco {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.tienda-cabecera {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 72px;
+  padding: 12px 0;
+  background: color-mix(in srgb, var(--papel) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--linea);
+}
+
+.tienda-marca {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.tienda-logo {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--acento);
+  color: var(--sobre);
+  font-weight: 700;
+  flex: none;
+}
+
+.tienda-logo img { width: 100%; height: 100%; object-fit: cover; }
+
+.tienda-nombre {
+  display: block;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tienda-bajada {
+  display: block;
+  color: var(--suave);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tienda-links {
+  display: none;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.tienda-links button,
+.tienda-pie button {
+  background: none;
+  border: 0;
+}
+
+.tienda-links button {
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: var(--suave);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.tienda-links button[aria-current="page"] {
+  color: var(--tinta);
+  box-shadow: inset 0 -2px 0 var(--acento);
+}
+
+.tienda-cuerpo { padding: 20px 0 48px; }
+
+.tienda-hero {
+  display: grid;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.tienda-hero h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(32px, 5vw, 64px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+
+.tienda-hero p { margin: 12px 0 0; max-width: 42ch; color: var(--suave); font-size: 16px; }
+
+.tienda-cta {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 18px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--acento);
+  color: var(--sobre);
+  font-weight: 700;
+}
+
+.tienda-foto {
+  min-height: 220px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--tinta) 8%, var(--papel));
+}
+
+.tienda-foto img { width: 100%; height: 100%; object-fit: cover; min-height: 220px; }
+.tienda-foto span { display: grid; place-items: center; min-height: 220px; color: var(--suave); }
+
+.tienda-buscar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  background: var(--tarjeta);
+}
+
+.tienda-buscar input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+}
+
+.tienda-categorias {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 22px;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.tienda-categorias button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  background: transparent;
+  white-space: nowrap;
+  font-weight: 650;
+}
+
+.tienda-categorias button[aria-pressed="true"] {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: var(--sobre);
+}
+
+.tienda-seccion h2 {
+  margin: 0 0 14px;
+  font-family: var(--display);
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+
+.tienda-grilla {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tienda-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+}
+
+.tienda-card figure {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--tinta) 7%, var(--papel));
+}
+
+.tienda-card img, .tienda-card .tienda-vacio-foto {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tienda-vacio-foto {
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 28px;
+  color: var(--suave);
+}
+
+.tienda-corazon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--papel) 88%, transparent);
+  color: var(--tinta);
+}
+
+.tienda-corazon[aria-pressed="true"] { color: var(--acento); }
+
+.tienda-meta { min-width: 0; padding: 10px 2px 0; }
+.tienda-meta h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.tienda-precio { margin: 4px 0 0; font-weight: 750; }
+.tienda-stock { margin: 2px 0 0; color: var(--suave); font-size: 12px; }
+
+.tienda-sumar {
+  min-height: 40px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--acento);
+  color: var(--sobre);
+  font-weight: 700;
+}
+.tienda-sumar:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.tienda-vacio {
+  padding: 36px 8px;
+  text-align: center;
+  color: var(--suave);
+}
+.tienda-vacio button { margin-top: 12px; }
+
+.tienda-ficha { display: grid; gap: 16px; }
+.tienda-ficha img, .tienda-ficha .tienda-vacio-foto { width: 100%; max-height: 460px; object-fit: cover; border-radius: 18px; }
+.tienda-volver { background: none; border: 0; padding: 0 0 12px; color: var(--suave); font-weight: 700; }
+
+.tienda-carrito { display: grid; gap: 12px; }
+.tienda-linea {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--linea);
+}
+.tienda-linea img, .tienda-linea .tienda-vacio-foto { width: 72px; height: 72px; object-fit: cover; border-radius: 12px; }
+.tienda-paso { display: flex; align-items: center; gap: 8px; }
+.tienda-paso button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  background: var(--tarjeta);
+}
+.tienda-total { display: flex; justify-content: space-between; font-size: 18px; font-weight: 750; }
+.tienda-nota { margin: 0; color: var(--suave); font-size: 14px; }
+.tienda-quitar { background: none; border: 0; padding: 0; color: var(--suave); font-size: 13px; }
+
+.tienda-pie {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  grid-template-columns: repeat(4, 1fr);
+  min-height: 64px;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--papel);
+  border-top: 1px solid var(--linea);
+}
+
+.tienda.anclado {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.tienda.anclado .tienda-cuerpo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 24px;
+}
+.tienda.anclado .tienda-pie { position: static; }
+
+.tienda-pie button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 64px;
+  color: var(--suave);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tienda-pie button[aria-current="page"] { color: var(--acento); }
+.tienda-cuenta {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--acento);
+  color: var(--sobre);
+  font-size: 10px;
+}
+
+.tienda.es-movil .tienda-links { display: none; }
+.tienda.es-movil .tienda-pie { display: grid; }
+.tienda.es-movil .tienda-cuerpo { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+.tienda.es-movil .tienda-marco { width: min(100% - 28px, 1120px); }
+
+.tienda.es-escritorio .tienda-links { display: flex; }
+.tienda.es-escritorio .tienda-pie { display: none; }
+.tienda.es-escritorio .tienda-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 420px; }
+.tienda.es-escritorio .tienda-grilla { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+.tienda.es-escritorio .tienda-ficha { grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); align-items: start; }
+
+@media (max-width: 799px) {
+  .tienda:not(.es-escritorio) .tienda-links { display: none; }
+  .tienda:not(.es-escritorio) .tienda-pie { display: grid; }
+  .tienda:not(.es-escritorio) .tienda-cuerpo { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+  .tienda:not(.es-escritorio) .tienda-marco { width: min(100% - 28px, 1120px); }
+}
+
+@media (min-width: 800px) {
+  .tienda:not(.es-movil) .tienda-links { display: flex; }
+  .tienda:not(.es-movil) .tienda-pie { display: none; }
+  .tienda:not(.es-movil) .tienda-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 420px; }
+  .tienda:not(.es-movil) .tienda-grilla { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+  .tienda:not(.es-movil) .tienda-ficha { grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); }
+}
+
+@media (max-width: 390px) {
+  .tienda:not(.es-escritorio) .tienda-nombre { font-size: 16px; }
+  .tienda:not(.es-escritorio) .tienda-hero h1 { font-size: 34px; }
+  .tienda:not(.es-escritorio) .tienda-grilla { gap: 12px; }
+}
+
+.tienda.es-movil .tienda-hero h1 { font-size: 36px; }
+
+/* Bruma: texto a un lado, foto al otro, tarjetas anchas */
+.tienda[data-variante="bruma"] .tienda-cabecera { border-bottom: 0; }
+.tienda[data-variante="bruma"] .tienda-nombre { font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; font-size: 15px; }
+.tienda[data-catalogo="amplio"] .tienda-grilla { grid-template-columns: 1fr; }
+.tienda[data-catalogo="amplio"] .tienda-card figure { aspect-ratio: 16 / 10; }
+.tienda.es-escritorio[data-catalogo="amplio"] .tienda-grilla,
+.tienda[data-catalogo="amplio"]:not(.es-movil) .tienda-grilla { grid-template-columns: 1fr 1fr; }
+@media (min-width: 800px) {
+  .tienda:not(.es-movil)[data-catalogo="amplio"] .tienda-grilla { grid-template-columns: 1fr 1fr; }
+}
+
+/* Bajo Cero */
+.tienda[data-variante="under"] .tienda-cabecera { min-height: 56px; background: #111; color: #f5f5f5; border-bottom: 0; }
+.tienda[data-variante="under"] .tienda-bajada,
+.tienda[data-variante="under"] .tienda-links button { color: rgba(245,245,245,0.72); }
+.tienda[data-variante="under"] .tienda-links button[aria-current="page"] { color: var(--acento); box-shadow: none; }
+.tienda[data-variante="under"] .tienda-hero { align-items: end; }
+.tienda[data-variante="under"] .tienda-hero h1 { text-transform: uppercase; letter-spacing: -0.06em; }
+.tienda[data-variante="under"] .tienda-foto { border-radius: 0 18px 18px 0; min-height: 280px; }
+.tienda[data-catalogo="fotos"] .tienda-card figure { aspect-ratio: 3 / 4; border-radius: 4px; }
+.tienda[data-catalogo="fotos"] .tienda-meta h3 { text-transform: uppercase; letter-spacing: 0.04em; font-size: 13px; }
+
+/* Casa Varela */
+.tienda[data-variante="editorial"] .tienda-cabecera { justify-content: center; border-bottom: 0; }
+.tienda[data-variante="editorial"] .tienda-links { position: absolute; right: max(16px, calc((100% - 1120px) / 2)); }
+.tienda[data-variante="editorial"] .tienda-nombre { letter-spacing: 0.18em; text-transform: uppercase; font-size: 14px; font-weight: 500; }
+.tienda[data-variante="editorial"] .tienda-hero { min-height: 0; }
+.tienda[data-portada="editorial"] .tienda-hero { display: block; position: relative; }
+.tienda[data-portada="editorial"] .tienda-foto { min-height: 360px; border-radius: 0; }
+.tienda[data-portada="editorial"] .tienda-hero-texto {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  max-width: min(460px, calc(100% - 48px));
+  color: #f6f1e8;
+}
+.tienda[data-portada="editorial"] .tienda-hero-texto p { color: rgba(246,241,232,0.82); }
+.tienda[data-catalogo="vertical"] .tienda-grilla { gap: 28px 18px; }
+.tienda[data-catalogo="vertical"] .tienda-card figure { aspect-ratio: 3 / 4; border-radius: 2px; background: transparent; }
+.tienda[data-catalogo="vertical"] .tienda-card img { object-fit: contain; }
+
+/* Orfebre */
+.tienda[data-variante="orfebre"] .tienda-cabecera { justify-content: center; }
+.tienda[data-variante="orfebre"] .tienda-nombre { letter-spacing: 0.22em; text-transform: uppercase; font-size: 18px; }
+.tienda[data-portada="contraste"] .tienda-hero { display: block; position: relative; }
+.tienda[data-portada="contraste"] .tienda-foto { min-height: 380px; border-radius: 0; }
+.tienda[data-portada="contraste"] .tienda-hero-texto {
+  position: absolute;
+  inset: auto auto 32px 24px;
+  max-width: min(420px, calc(100% - 48px));
+  color: #f8f1e4;
+}
+.tienda[data-portada="contraste"] .tienda-hero-texto p { color: rgba(248,241,228,0.8); }
+.tienda[data-catalogo="simple"] .tienda-card { background: transparent; }
+.tienda[data-catalogo="simple"] .tienda-card figure { border-radius: 12px; }
+
+/* Nodo */
+.tienda[data-variante="nodo"] .tienda-buscar { border-radius: 14px; box-shadow: 0 8px 24px rgba(37, 99, 235, 0.08); }
+.tienda[data-variante="nodo"] .tienda-hero h1 { letter-spacing: -0.045em; }
+.tienda[data-catalogo="compacto"] .tienda-card figure { aspect-ratio: 1.15; border-radius: 18px; background: #eef3ff; }
+.tienda[data-catalogo="compacto"] .tienda-card img { object-fit: contain; padding: 12px; }
+.tienda[data-catalogo="compacto"] .tienda-precio { color: var(--acento); font-size: 16px; }
+
+/* El Taller */
+.tienda[data-variante="taller"] .tienda-cabecera { background: #161616; color: #f5f5f4; border-bottom: 0; border-radius: 0; }
+.tienda[data-variante="taller"] .tienda-bajada,
+.tienda[data-variante="taller"] .tienda-links button { color: rgba(245,245,244,0.7); }
+.tienda[data-variante="taller"] .tienda-links button[aria-current="page"] { color: var(--acento); }
+.tienda[data-variante="taller"] .tienda-buscar { border-radius: 10px; background: #fff; color: #1a1614; }
+.tienda[data-portada="herramientas"] .tienda-hero { display: block; position: relative; }
+.tienda[data-portada="herramientas"] .tienda-foto { min-height: 280px; border-radius: 8px; }
+.tienda[data-portada="herramientas"] .tienda-hero-texto {
+  position: absolute;
+  left: 20px;
+  bottom: 20px;
+  max-width: min(520px, calc(100% - 40px));
+  color: #fff;
+}
+.tienda[data-portada="herramientas"] .tienda-hero h1 { text-transform: uppercase; font-size: clamp(28px, 4vw, 48px); }
+.tienda[data-portada="herramientas"] .tienda-hero-texto p { color: rgba(255,255,255,0.86); }
+.tienda[data-catalogo="fichas"] .tienda-grilla { grid-template-columns: 1fr; }
+.tienda[data-catalogo="fichas"] .tienda-card { flex-direction: row; gap: 12px; align-items: center; padding: 8px; border: 1px solid var(--linea); border-radius: 12px; background: var(--tarjeta); }
+.tienda[data-catalogo="fichas"] .tienda-card figure { width: 96px; height: 96px; aspect-ratio: 1; flex: none; border-radius: 8px; }
+.tienda.es-escritorio[data-catalogo="fichas"] .tienda-grilla { grid-template-columns: 1fr 1fr; }
+@media (min-width: 800px) {
+  .tienda:not(.es-movil)[data-catalogo="fichas"] .tienda-grilla { grid-template-columns: 1fr 1fr; }
+}
+
+/* La Esquina */
+.tienda[data-variante="kiosco"] .tienda-nombre { color: var(--acento); }
+.tienda[data-portada="corta"] .tienda-hero { min-height: 0; }
+.tienda[data-portada="corta"] .tienda-foto { min-height: 160px; }
+.tienda[data-variante="kiosco"] .tienda-hero h1 { color: var(--acento); font-size: clamp(32px, 6vw, 52px); }
+.tienda[data-catalogo="rapido"] .tienda-card figure { aspect-ratio: 1.05; border-radius: 18px; }
+.tienda[data-catalogo="rapido"] .tienda-sumar { width: 100%; }
+
+/* Santo Barber */
+.tienda[data-variante="diario"] .tienda-cabecera {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  border-top: 2px solid var(--tinta);
+  border-bottom: 2px solid var(--tinta);
+  text-align: center;
+}
+.tienda[data-variante="diario"] .tienda-links { position: static; margin: 0; }
+.tienda[data-variante="diario"] .tienda-nombre { letter-spacing: 0.16em; text-transform: uppercase; font-size: 22px; }
+.tienda[data-portada="diario"] .tienda-hero { display: block; }
+.tienda[data-portada="diario"] .tienda-hero h1 { text-transform: uppercase; border-bottom: 1px solid var(--linea); padding-bottom: 8px; }
+.tienda[data-portada="diario"] .tienda-foto { margin-top: 12px; min-height: 280px; border-radius: 2px; filter: grayscale(0.25); }
+
+.tienda.es-movil[data-portada="lado"] .tienda-hero,
+.tienda.es-movil[data-portada="asimetrico"] .tienda-hero,
+.tienda.es-movil[data-portada="corta"] .tienda-hero,
+.tienda.es-movil[data-portada="diario"] .tienda-hero {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+@media (max-width: 799px) {
+  .tienda:not(.es-escritorio)[data-portada="lado"] .tienda-hero,
+  .tienda:not(.es-escritorio)[data-portada="asimetrico"] .tienda-hero {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .tienda:not(.es-escritorio)[data-catalogo="amplio"] .tienda-grilla { grid-template-columns: 1fr; }
+  .tienda:not(.es-escritorio)[data-variante="editorial"] .tienda-links,
+  .tienda:not(.es-escritorio)[data-variante="orfebre"] .tienda-nombre { letter-spacing: 0.12em; }
+}
+
+.tienda[data-variante="editorial"] .tienda-marco,
+.tienda[data-variante="orfebre"] .tienda-marco,
+.tienda[data-variante="diario"] .tienda-marco { justify-content: center; }
+.tienda[data-variante="diario"] .tienda-marco { flex-direction: column; align-items: center; }
+.tienda.es-escritorio[data-variante="editorial"] .tienda-links,
+.tienda.es-escritorio[data-variante="orfebre"] .tienda-links { position: absolute; right: 20px; }
+.tienda.anclado.es-movil .tienda-cuerpo { padding-bottom: 24px; }
+.tienda.anclado.es-movil .tienda-pie { display: grid; }
