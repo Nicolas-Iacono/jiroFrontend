@@ -24,6 +24,8 @@ function fichaDatos(producto) {
     publicado: producto.publicado,
     publico: producto.publico || '',
     descripcion: producto.descripcion || '',
+    notasBot: producto.notasBot || '',
+    servicio: Boolean(producto.servicio),
     ...camposDe(producto),
   };
 }
@@ -190,6 +192,8 @@ export default function FichaProducto() {
     || Boolean(datos.publicado) !== Boolean(producto.publicado)
     || (datos.publico || '') !== (producto.publico || '')
     || (datos.descripcion || '') !== (producto.descripcion || '')
+    || (datos.notasBot || '') !== (producto.notasBot || '')
+    || Boolean(datos.servicio) !== Boolean(producto.servicio)
     || (datos.marca || '') !== (producto.marca || '')
     || (datos.modelo || '') !== (producto.modelo || '')
     || (datos.color || '') !== (producto.color || '')
@@ -284,25 +288,28 @@ export default function FichaProducto() {
     setOcupado(true);
     setMensaje('');
     try {
-      const conVariantes = (producto.variantes || []).length + nuevas.length > 0;
+      const esServicio = Boolean(datos.servicio);
+      const conVariantes = !esServicio && (producto.variantes || []).length + nuevas.length > 0;
       await api(`/api/productos/${producto.id}`, {
         method: 'PUT',
         body: {
           nombre: datos.nombre.trim(),
           descripcion: datos.descripcion || null,
+          notasBot: datos.notasBot || null,
           sku: datos.sku || null,
           categoriaId: datos.categoriaId ? Number(datos.categoriaId) : null,
           costo: Number(datos.costo),
           precio: Number(datos.precio),
-          stock: Number(datos.stock),
+          stock: esServicio ? 0 : Number(datos.stock),
           stockMinimo: Number(datos.stockMinimo),
           publicado: Boolean(datos.publicado),
-          usaVariantes: conVariantes || producto.usaVariantes,
+          servicio: esServicio,
+          usaVariantes: esServicio ? false : (conVariantes || producto.usaVariantes),
           publico: datos.publico || null,
           ...payloadDetalles(datos),
         },
       });
-      for (const variante of nuevas) {
+      for (const variante of esServicio ? [] : nuevas) {
         await api(`/api/productos/${producto.id}/variantes`, {
           method: 'POST',
           body: {
@@ -341,19 +348,21 @@ export default function FichaProducto() {
         body: {
           nombre: `${producto.nombre} (copia)`,
           descripcion: producto.descripcion || null,
+          notasBot: producto.notasBot || null,
           sku: producto.sku ? `${producto.sku}-copia` : null,
           categoriaId: producto.categoriaId,
           costo: Number(producto.costo),
           precio: Number(producto.precio),
-          stock: producto.usaVariantes ? 0 : Number(producto.stock),
+          stock: producto.servicio || producto.usaVariantes ? 0 : Number(producto.stock),
           stockMinimo: Number(producto.stockMinimo),
           publicado: false,
-          usaVariantes: producto.usaVariantes,
+          servicio: Boolean(producto.servicio),
+          usaVariantes: producto.servicio ? false : producto.usaVariantes,
           publico: producto.publico || null,
           ...payloadDetalles(producto),
         },
       });
-      for (const variante of producto.variantes || []) {
+      for (const variante of producto.servicio ? [] : (producto.variantes || [])) {
         await api(`/api/productos/${copia.id}/variantes`, {
           method: 'POST',
           body: { nombre: variante.nombre, sku: variante.sku ? `${variante.sku}-copia` : null, precio: variante.precio, stock: 0 },
@@ -396,7 +405,7 @@ export default function FichaProducto() {
     <div className="flex flex-col gap-4 pb-24">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
         <p>
-          <Link to="/productos" className="hover:text-accent">Productos</Link>
+          <Link to="/productos" className="hover:text-accent">{ofertaNegocio === 'SERVICIOS' ? 'Servicios' : ofertaNegocio === 'AMBAS' ? 'Productos y servicios' : 'Productos'}</Link>
           {producto.categoria ? ` / ${producto.categoria}` : ''}
           {` / ${producto.nombre}`}
         </p>
@@ -411,7 +420,12 @@ export default function FichaProducto() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black text-ink">Editar: {producto.nombre}</h1>
-          <p className="mt-0.5 text-xs text-muted">Edición del catálogo, variantes y precios. Las cifras salen de las ventas registradas.</p>
+          <div className="mt-2 flex gap-2" role="tablist" aria-label="Tipo">
+            {[[false, 'Producto'], [true, 'Servicio']].map(([valor, etiqueta]) => (
+              <button key={etiqueta} type="button" role="tab" aria-selected={Boolean(datos.servicio) === valor} className={`rounded-xl px-3 py-1.5 text-xs font-bold ${Boolean(datos.servicio) === valor ? 'bg-fill text-onfill' : 'bg-sunken text-muted'}`} onClick={() => setDatos({ ...datos, servicio: valor })}>{etiqueta}</button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-muted">{datos.servicio ? 'Servicio sin stock. El bot usa el nombre, el precio y la descripción para asesorar y dar turnos.' : 'Edición del catálogo, variantes y precios. Las cifras salen de las ventas registradas.'}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {vidriera && (
@@ -443,9 +457,9 @@ export default function FichaProducto() {
           <p className="text-[11px] text-faint">{unidadesVendidas > 0 ? `Precio promedio ${pesos(facturado / unidadesVendidas)}` : 'Sin ventas en el período'}</p>
         </article>
         <article className="rounded-2xl border border-line bg-card px-4 py-3 shadow-sm">
-          <div className="mb-1 flex items-center justify-between"><p className="text-[11px] font-bold tracking-wide text-faint">STOCK ACTUAL</p><span className="grid h-8 w-8 place-items-center rounded-full bg-amber-50 text-amber-600"><Alerta className="h-4 w-4" /></span></div>
-          <p className={`text-2xl font-black ${stock <= 0 ? 'text-rose-600' : bajo ? 'text-amber-600' : 'text-ink'}`}>{numero(stock)} unid.</p>
-          <p className="text-[11px] text-faint">{stock <= 0 ? 'Agotado' : bajo ? 'Por debajo del mínimo' : 'Por encima del mínimo'}</p>
+          <div className="mb-1 flex items-center justify-between"><p className="text-[11px] font-bold tracking-wide text-faint">{datos.servicio ? 'TIPO' : 'STOCK ACTUAL'}</p><span className="grid h-8 w-8 place-items-center rounded-full bg-amber-50 text-amber-600"><Alerta className="h-4 w-4" /></span></div>
+          <p className={`text-2xl font-black ${datos.servicio ? 'text-ink' : stock <= 0 ? 'text-rose-600' : bajo ? 'text-amber-600' : 'text-ink'}`}>{datos.servicio ? 'Servicio' : `${numero(stock)} unid.`}</p>
+          <p className="text-[11px] text-faint">{datos.servicio ? 'Sin stock. Se reserva con turno.' : stock <= 0 ? 'Agotado' : bajo ? 'Por debajo del mínimo' : 'Por encima del mínimo'}</p>
         </article>
         <article className="rounded-2xl border border-line bg-card px-4 py-3 shadow-sm">
           <div className="mb-1 flex items-center justify-between"><p className="text-[11px] font-bold tracking-wide text-faint">MARGEN</p><span className="grid h-8 w-8 place-items-center rounded-full bg-accent-soft text-accent">%</span></div>
@@ -481,6 +495,10 @@ export default function FichaProducto() {
             <div className="mt-4 grid gap-2">
               <label className="text-xs font-semibold text-muted">Nombre<input className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2 text-sm font-medium text-ink outline-none focus:border-accent" value={datos.nombre} onChange={set('nombre')} /></label>
               <label className="text-xs font-semibold text-muted">Descripción<textarea className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2 text-sm text-ink outline-none focus:border-accent" rows={3} maxLength={2000} value={datos.descripcion || ''} onChange={set('descripcion')} /></label>
+              {sesion()?.rol === 'DUENO' && <label className="text-xs font-semibold text-muted">Aclaraciones para el asesor
+                <span className="mt-0.5 block text-[11px] font-medium text-faint">Solo las ves vos. No se publican en la vidriera. El bot las usa para asesorar: olores, cómo queda un talle, qué ofrecer si no hay stock.</span>
+                <textarea className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2 text-sm text-ink outline-none focus:border-accent" rows={3} maxLength={2000} placeholder="Ej: si piden la remera verde y no hay talle M, ofrecer la azul del mismo corte." value={datos.notasBot || ''} onChange={set('notasBot')} />
+              </label>}
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs font-semibold text-muted">Categoría
                   <select className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2 text-sm" value={datos.categoriaId} onChange={set('categoriaId')}>
@@ -490,7 +508,7 @@ export default function FichaProducto() {
                 </label>
                 <label className="text-xs font-semibold text-muted">SKU<input className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2 font-mono text-sm" value={datos.sku} onChange={set('sku')} /></label>
               </div>
-              {(datos.publico || rubros.includes('indumentaria') || rubros.includes('calzado') || detalles.includes('talle') || detalles.includes('calzado')) && <div>
+              {!datos.servicio && (datos.publico || rubros.includes('indumentaria') || rubros.includes('calzado') || detalles.includes('talle') || detalles.includes('calzado')) && <div>
                 <p className="text-xs font-semibold text-muted">Hombre o mujer</p>
                 <p className="mb-2 text-[11px] text-faint">Si lo marcás, la categoría entra en ese submenú de la tienda. Si no, queda afuera.</p>
                 <div className="flex flex-wrap gap-2">
@@ -499,7 +517,7 @@ export default function FichaProducto() {
                   ))}
                 </div>
               </div>}
-              <CamposDetalle datos={datos} activos={detalles} onChange={(clave, valorCampo) => setDatos({ ...datos, [clave]: valorCampo })} />
+              {!datos.servicio && <CamposDetalle datos={datos} activos={detalles} onChange={(clave, valorCampo) => setDatos({ ...datos, [clave]: valorCampo })} />}
             </div>
           </section>
 
@@ -519,7 +537,7 @@ export default function FichaProducto() {
               {oferta && <input className="mt-2 w-full rounded-xl border border-line px-3 py-2 text-sm" type="number" min="0.01" step="0.01" placeholder="Precio de oferta" value={precioOferta} onChange={(event) => setPrecioOferta(event.target.value)} />}
             </div>
 
-            {(ofertaNegocio !== 'SERVICIOS' || (producto.variantes || []).length > 0) && <div className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+            {!datos.servicio && <div className="rounded-2xl border border-line bg-card p-4 shadow-sm">
               <h2 className="text-sm font-bold text-ink">{detalles.includes('calzado') && !detalles.includes('talle') ? 'Números y stock' : 'Variantes y stock'}</h2>
               <div className="mt-2 divide-y divide-line text-xs">
                 {(producto.variantes || []).length === 0 && nuevas.length === 0 && (

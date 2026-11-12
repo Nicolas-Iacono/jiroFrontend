@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -17,6 +18,10 @@ function paginasPublicas() {
 
 export default defineConfig({
   plugins: [paginasPublicas(), react()],
+  resolve: {
+    alias: { '@tienda': fileURLToPath(new URL('../vidriera-ui', import.meta.url)) },
+    dedupe: ['react', 'react-dom'],
+  },
   server: {
     port: 5173,
     proxy: { '/api': 'http://localhost:8081' },

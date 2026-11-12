@@ -4,7 +4,17 @@ import { api, sesion, token, urlApi, urlFoto, urlVidriera } from '../api.js';
 import { Alerta, Etiqueta, Filtro, Lupa, Tienda } from './Iconos.jsx';
 import { CamposDetalle, camposDe, payloadDetalles } from './detalles.jsx';
 
-const vacio = { nombre: '', descripcion: '', sku: '', categoriaId: '', costo: 0, precio: 0, stock: 0, stockMinimo: 0, publicado: true, usaVariantes: false, publico: '', ...camposDe() };
+const vacio = { nombre: '', descripcion: '', notasBot: '', sku: '', categoriaId: '', costo: 0, precio: 0, stock: 0, stockMinimo: 0, publicado: true, usaVariantes: false, publico: '', servicio: false, ...camposDe() };
+
+function nombreCatalogo(oferta) {
+  if (oferta === 'SERVICIOS') return 'Servicios';
+  if (oferta === 'AMBAS') return 'Productos y servicios';
+  return 'Productos';
+}
+
+function itemServicio(producto, oferta) {
+  return oferta === 'SERVICIOS' || Boolean(producto?.servicio);
+}
 const porPagina = 8;
 const tonos = ['bg-accent-soft text-accent', 'bg-sky-50 text-sky-700', 'bg-amber-50 text-amber-700', 'bg-emerald-50 text-emerald-700'];
 
@@ -38,6 +48,7 @@ function cuerpo(form) {
   return {
     nombre: form.nombre,
     descripcion: form.descripcion || null,
+    notasBot: form.notasBot || null,
     sku: form.sku || null,
     categoriaId: form.categoriaId ? Number(form.categoriaId) : null,
     costo: Number(form.costo),
@@ -46,6 +57,7 @@ function cuerpo(form) {
     stockMinimo: Number(form.stockMinimo),
     publicado: Boolean(form.publicado),
     usaVariantes: Boolean(form.usaVariantes),
+    servicio: Boolean(form.servicio),
     publico: form.publico || null,
     ...payloadDetalles(form),
   };
@@ -79,6 +91,19 @@ export default function Productos() {
   const [elegidos, setElegidos] = useState([]);
   const [menu, setMenu] = useState(null);
   const [form, setForm] = useState(null);
+  const [oferta, setOferta] = useState('PRODUCTOS');
+
+  useEffect(() => {
+    let vivo = true;
+    api('/api/ajustes').then((ajuste) => vivo && setOferta(ajuste.oferta || 'PRODUCTOS')).catch(() => {});
+    const alCambiar = (event) => setOferta(event.detail || 'PRODUCTOS');
+    window.addEventListener('giro-oferta', alCambiar);
+    return () => { vivo = false; window.removeEventListener('giro-oferta', alCambiar); };
+  }, []);
+
+  function abrirAlta() {
+    setForm({ ...vacio, servicio: oferta === 'SERVICIOS' });
+  }
 
   useEffect(() => {
     let vivo = true;
@@ -107,8 +132,8 @@ export default function Productos() {
     return { costo: total.costo + item.costo, venta: total.venta + item.venta };
   }, { costo: 0, venta: 0 }), [activos]);
   const margen = valores.venta > 0 ? Math.round(((valores.venta - valores.costo) / valores.venta) * 100) : null;
-  const bajos = activos.filter((producto) => hayQueReponer(producto) && unidades(producto) > 0);
-  const criticos = activos.filter((producto) => unidades(producto) <= 0);
+  const bajos = activos.filter((producto) => !itemServicio(producto, oferta) && hayQueReponer(producto) && unidades(producto) > 0);
+  const criticos = activos.filter((producto) => !itemServicio(producto, oferta) && unidades(producto) <= 0);
   const publicados = activos.filter((producto) => producto.publicado);
 
   const filas = (productos || []).filter((producto) => {
@@ -117,6 +142,7 @@ export default function Productos() {
     if (estado === 'vidriera' && !producto.publicado) return false;
     if (estado === 'ocultos' && producto.publicado) return false;
     if (categoria && producto.categoria !== categoria) return false;
+    if (stock !== 'todos' && itemServicio(producto, oferta)) return false;
     if (stock === 'reponer' && !(hayQueReponer(producto) && unidades(producto) > 0)) return false;
     if (stock === 'agotados' && unidades(producto) > 0) return false;
     if (stock === 'con-stock' && unidades(producto) <= 0) return false;
@@ -193,17 +219,17 @@ export default function Productos() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2.5 text-2xl font-black text-ink">
-            Productos
+            {nombreCatalogo(oferta)}
             <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">● Catálogo activo</span>
           </h1>
-          <p className="mt-0.5 text-xs text-muted">Gestioná tu inventario, precios, variantes y publicación en la vidriera.</p>
+          <p className="mt-0.5 text-xs text-muted">{oferta === 'SERVICIOS' ? 'Cargá los servicios, sus precios y las fotos. El bot los usa para asesorar y dar turnos.' : oferta === 'AMBAS' ? 'Productos con stock y servicios para turnos. El bot lee ambos.' : 'Gestioná tu inventario, precios, variantes y publicación en la vidriera.'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="flex items-center gap-1.5 rounded-xl border border-line bg-card px-3.5 py-2 text-xs font-semibold text-ink hover:bg-sunken" onClick={exportar}>
             Exportar catálogo
           </button>
-          <button type="button" className="rounded-xl bg-fill px-4 py-2 text-sm font-bold text-onfill shadow-md hover:bg-fill-hover" onClick={() => setForm({ ...vacio })}>
-            + Nuevo producto
+          <button type="button" className="rounded-xl bg-fill px-4 py-2 text-sm font-bold text-onfill shadow-md hover:bg-fill-hover" onClick={abrirAlta}>
+            + {oferta === 'SERVICIOS' ? 'Nuevo servicio' : 'Nuevo producto'}
           </button>
         </div>
       </div>
@@ -268,8 +294,8 @@ export default function Productos() {
 
         {filas.length === 0 ? (
           <div className="rounded-xl bg-sunken px-3 py-8 text-center">
-            <p className="text-sm text-muted">No hay productos para este filtro.</p>
-            <button type="button" className="mt-1 text-sm font-semibold text-accent" onClick={() => setForm({ ...vacio })}>Cargar el primer producto</button>
+            <p className="text-sm text-muted">No hay {oferta === 'SERVICIOS' ? 'servicios' : 'productos'} para este filtro.</p>
+            <button type="button" className="mt-1 text-sm font-semibold text-accent" onClick={abrirAlta}>Cargar el primer {oferta === 'SERVICIOS' ? 'servicio' : 'producto'}</button>
           </div>
         ) : vista === 'grilla' ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -300,23 +326,26 @@ export default function Productos() {
                           <Miniatura producto={producto} />
                           <span className="min-w-0">
                             <Link to={`/productos/${producto.id}`} className="block truncate text-sm font-bold text-ink hover:text-accent">{producto.nombre}</Link>
+                            <span className="mt-0.5 inline-block rounded-md bg-sunken px-1.5 py-0.5 text-[10px] font-bold text-muted">{itemServicio(producto, oferta) ? 'Servicio' : 'Producto'}</span>
                             <span className="block font-mono text-[10px] text-faint">{producto.sku || 'Sin SKU'}</span>
                           </span>
                         </span>
                       </td>
                       <td className="py-3 pr-3">{producto.categoria ? <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${tonoCategoria(producto.categoria)}`}>{producto.categoria}</span> : <span className="text-xs text-faint">Sin categoría</span>}{producto.publico === 'hombre' && <span className="ml-1 text-[10px] font-bold text-muted">Hombre</span>}{producto.publico === 'mujer' && <span className="ml-1 text-[10px] font-bold text-muted">Mujer</span>}</td>
                       <td className="py-3 pr-3">
-                        <span className="flex flex-wrap gap-1">
+                        {itemServicio(producto, oferta) ? <span className="text-[11px] text-faint">—</span> : <span className="flex flex-wrap gap-1">
                           {(producto.variantes || []).length === 0 && <span className="text-[11px] text-faint">Sin variantes</span>}
                           {(producto.variantes || []).slice(0, 4).map((variante) => <span key={variante.id} className="rounded-md bg-sunken px-1.5 py-0.5 text-[10px] font-bold text-muted">{variante.nombre}</span>)}
                           {(producto.variantes || []).length > 4 && <span className="text-[10px] text-faint">+{producto.variantes.length - 4}</span>}
-                        </span>
+                        </span>}
                       </td>
                       <td className="py-3 pr-3 text-sm font-extrabold text-ink">{pesos(producto.precioVigente ?? producto.precio)}</td>
                       <td className="py-3 pr-3">
+                        {itemServicio(producto, oferta) ? <p className="text-xs font-bold text-muted">Sin stock</p> : <>
                         <p className={`text-xs font-bold ${sinStock ? 'text-rose-600' : bajo ? 'text-amber-600' : 'text-emerald-700'}`}>{sinStock ? 'Agotado (0)' : `${numero(cantidad)} unid.`}</p>
                         <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${sinStock ? 'bg-rose-50 text-rose-600' : bajo ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{sinStock ? 'Agotado' : bajo ? 'Reponer' : 'En stock'}</span>
                         <span className="mt-1 block h-1 w-16 overflow-hidden rounded-full bg-sunken"><span className={`block h-full ${sinStock ? 'bg-rose-400' : bajo ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${nivel}%` }} /></span>
+                        </>}
                       </td>
                       <td className="py-3 pr-3">
                         <button type="button" role="switch" aria-checked={producto.publicado} disabled={!producto.activo} className={`relative h-5 w-9 rounded-full ${producto.publicado ? 'bg-fill' : 'bg-raise'} disabled:opacity-40`} onClick={() => publicar(producto)}>
@@ -398,13 +427,13 @@ function TarjetaProducto({ producto, onPublicar }) {
         <Miniatura producto={producto} />
         <div className="min-w-0 flex-1">
           <Link to={`/productos/${producto.id}`} className="block truncate text-sm font-bold text-ink hover:text-accent">{producto.nombre}</Link>
-          <p className="font-mono text-[10px] text-faint">{producto.sku || 'Sin SKU'}</p>
+          <p className="font-mono text-[10px] text-faint">{producto.servicio ? 'Servicio' : 'Producto'}{producto.sku ? ` · ${producto.sku}` : ''}</p>
         </div>
         <Link to={`/productos/${producto.id}`} className="text-xs font-semibold text-accent">Editar</Link>
       </div>
       <div className="mt-2 flex items-center justify-between text-xs">
         <span className="font-extrabold text-ink">{pesos(producto.precioVigente ?? producto.precio)}</span>
-        <span className={cantidad <= 0 ? 'font-bold text-rose-600' : 'text-muted'}>{cantidad <= 0 ? 'Agotado' : `${numero(cantidad)} unid.`}</span>
+        <span className={producto.servicio ? 'text-muted' : cantidad <= 0 ? 'font-bold text-rose-600' : 'text-muted'}>{producto.servicio ? 'Servicio' : cantidad <= 0 ? 'Agotado' : `${numero(cantidad)} unid.`}</span>
         <button type="button" className="font-semibold text-accent" onClick={onPublicar}>{producto.publicado ? 'En vidriera' : 'Oculto'}</button>
       </div>
     </article>
@@ -430,7 +459,6 @@ function Formulario({ form, categorias, onClose, onLista }) {
   const [escala, setEscala] = useState('indumentaria');
   const [detalles, setDetalles] = useState([]);
   const [rubros, setRubros] = useState([]);
-  const [ofertaNegocio, setOfertaNegocio] = useState('PRODUCTOS');
   const [nuevas, setNuevas] = useState([]);
   const [talleExtra, setTalleExtra] = useState('');
   const [oferta, setOferta] = useState(false);
@@ -450,7 +478,6 @@ function Formulario({ form, categorias, onClose, onLista }) {
       const lista = ajuste.detalles || [];
       setDetalles(lista);
       setRubros(ajuste.rubros || []);
-      setOfertaNegocio(ajuste.oferta || 'PRODUCTOS');
       if (lista.includes('calzado') && !lista.includes('talle')) setEscala('calzado');
     }).catch(() => {});
     return () => { vivo = false; };
@@ -466,11 +493,11 @@ function Formulario({ form, categorias, onClose, onLista }) {
   const ofertaNumero = Number(precioOferta);
   const ahorro = precio > ofertaNumero && ofertaNumero > 0 ? precio - ofertaNumero : 0;
   const descuento = ahorro ? Math.round((ahorro / precio) * 100) : 0;
-  const servicios = ofertaNegocio === 'SERVICIOS';
+  const esServicio = Boolean(datos.servicio);
   const usaTalle = detalles.includes('talle');
   const usaCalzado = detalles.includes('calzado');
-  const muestraPublico = Boolean(datos.publico) || rubros.includes('indumentaria') || rubros.includes('calzado') || usaTalle || usaCalzado;
-  const muestraVariantes = !servicios && (usaTalle || usaCalzado || existentes.length > 0 || nuevas.length > 0);
+  const muestraPublico = !esServicio && (Boolean(datos.publico) || rubros.includes('indumentaria') || rubros.includes('calzado') || usaTalle || usaCalzado);
+  const muestraVariantes = !esServicio && (usaTalle || usaCalzado || existentes.length > 0 || nuevas.length > 0);
   const chips = [...new Set([...(escalas[escala] || []), ...existentes.map((item) => item.nombre), ...nuevas.map((item) => item.nombre)])];
   const totalStock = existentes.reduce((suma, item) => suma + Number(item.stock || 0), 0) + nuevas.reduce((suma, item) => suma + Number(item.stock || 0), 0);
   const cupoFotos = Math.max(0, 8 - (datos.imagenes || []).length - fotos.length);
@@ -513,20 +540,22 @@ function Formulario({ form, categorias, onClose, onLista }) {
         setRubroNuevo('');
         setDatos((actual) => ({ ...actual, categoriaId }));
       }
-      const conVariantes = existentes.length + nuevas.length > 0;
+      const esAltaServicio = Boolean(datos.servicio);
+      const conVariantes = !esAltaServicio && existentes.length + nuevas.length > 0;
       const producto = await api(datos.id ? `/api/productos/${datos.id}` : '/api/productos', {
         method: datos.id ? 'PUT' : 'POST',
         body: cuerpo({
           ...datos,
           categoriaId: categoriaId || '',
           publicado,
+          servicio: esAltaServicio,
           usaVariantes: conVariantes,
-          stock: conVariantes && !datos.id ? 0 : datos.stock,
+          stock: esAltaServicio || (conVariantes && !datos.id) ? 0 : datos.stock,
         }),
       });
       const id = producto.id;
-      setDatos((actual) => ({ ...actual, id, publicado, usaVariantes: conVariantes, categoriaId: categoriaId || '' }));
-      const pendientes = [...nuevas];
+      setDatos((actual) => ({ ...actual, id, publicado, servicio: esAltaServicio, usaVariantes: conVariantes, categoriaId: categoriaId || '' }));
+      const pendientes = esAltaServicio ? [] : [...nuevas];
       while (pendientes.length) {
         const variante = pendientes[0];
         await api(`/api/productos/${id}/variantes`, {
@@ -573,10 +602,10 @@ function Formulario({ form, categorias, onClose, onLista }) {
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-xl font-black tracking-tight text-ink">{datos.id ? 'Editar producto' : 'Nuevo producto'}</h2>
+                <h2 className="text-xl font-black tracking-tight text-ink">{datos.id ? `Editar ${esServicio ? 'servicio' : 'producto'}` : `Nuevo ${esServicio ? 'servicio' : 'producto'}`}</h2>
                 <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-bold text-accent">{datos.id ? 'Edición' : 'Alta de catálogo'}</span>
               </div>
-              <p className="mt-0.5 text-xs text-muted">Cargá los datos, las variantes, los precios y las fotos de la vidriera.</p>
+              <p className="mt-0.5 text-xs text-muted">{esServicio ? 'Cargá el nombre, el precio, la descripción y las fotos. El bot usa estos datos para asesorar y dar turnos.' : 'Cargá los datos, las variantes, los precios y las fotos de la vidriera.'}</p>
             </div>
           </div>
           <button type="button" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sunken text-faint hover:bg-raise hover:text-ink" aria-label="Cerrar" onClick={onClose}>
@@ -586,14 +615,24 @@ function Formulario({ form, categorias, onClose, onLista }) {
 
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto p-5 [scrollbar-width:none] md:grid-cols-12 md:p-6 [&::-webkit-scrollbar]:hidden">
           <section className="space-y-5 md:col-span-7">
+            <div className="flex gap-2" role="tablist" aria-label="Tipo de alta">
+              {[[false, 'Producto'], [true, 'Servicio']].map(([valor, etiqueta]) => (
+                <button key={etiqueta} type="button" role="tab" aria-selected={esServicio === valor} className={`rounded-xl px-4 py-2 text-sm font-bold ${esServicio === valor ? 'bg-fill text-onfill' : 'bg-sunken text-muted'}`} onClick={() => setDatos({ ...datos, servicio: valor })}>{etiqueta}</button>
+              ))}
+            </div>
             <label className="block text-xs font-semibold text-muted">
-              Nombre del producto
-              <input className="mt-1 w-full rounded-xl border border-line bg-sunken px-4 py-2.5 text-sm font-medium text-ink outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/20" placeholder="Ej: Campera puffer con capucha" value={datos.nombre} onChange={set('nombre')} required />
+              {esServicio ? 'Nombre del servicio' : 'Nombre del producto'}
+              <input className="mt-1 w-full rounded-xl border border-line bg-sunken px-4 py-2.5 text-sm font-medium text-ink outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/20" placeholder={esServicio ? 'Ej: Corte de pelo' : 'Ej: Campera puffer con capucha'} value={datos.nombre} onChange={set('nombre')} required />
             </label>
             <label className="block text-xs font-semibold text-muted">
               Descripción
-              <textarea className="mt-1 w-full rounded-xl border border-line bg-sunken px-4 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/20" rows={3} maxLength={2000} placeholder="Qué es, de qué está hecho o cómo se usa" value={datos.descripcion || ''} onChange={set('descripcion')} />
+              <textarea className="mt-1 w-full rounded-xl border border-line bg-sunken px-4 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/20" rows={3} maxLength={2000} placeholder={esServicio ? 'Qué incluye, cuánto dura o cómo se hace' : 'Qué es, de qué está hecho o cómo se usa'} value={datos.descripcion || ''} onChange={set('descripcion')} />
             </label>
+            {sesion()?.rol === 'DUENO' && <label className="block text-xs font-semibold text-muted">
+              Aclaraciones para el asesor
+              <span className="mt-0.5 block text-[11px] font-medium text-faint">Solo las ves vos. No se publican en la vidriera. El bot las usa para asesorar.</span>
+              <textarea className="mt-1 w-full rounded-xl border border-line bg-sunken px-4 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/20" rows={3} maxLength={2000} placeholder={esServicio ? 'Ej: si piden color, preguntar si ya se tiñó antes.' : 'Ej: el perfume es floral, con jazmín. Si no hay talle M, ofrecer el L.'} value={datos.notasBot || ''} onChange={set('notasBot')} />
+            </label>}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="text-xs font-semibold text-muted">
                 Categoría
@@ -623,7 +662,7 @@ function Formulario({ form, categorias, onClose, onLista }) {
                 ))}
               </div>
             </div>}
-            <CamposDetalle datos={datos} activos={detalles} onChange={(clave, valorCampo) => setDatos({ ...datos, [clave]: valorCampo })} />
+            {!esServicio && <CamposDetalle datos={datos} activos={detalles} onChange={(clave, valorCampo) => setDatos({ ...datos, [clave]: valorCampo })} />}
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="text-xs font-semibold text-muted">
@@ -657,7 +696,7 @@ function Formulario({ form, categorias, onClose, onLista }) {
               )}
             </div>
 
-            {!servicios && <div>
+            {!esServicio && <div>
               {muestraVariantes && (
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-bold text-ink">{usaCalzado && !usaTalle ? 'Números y stock inicial' : 'Talles y stock inicial'}</h3>

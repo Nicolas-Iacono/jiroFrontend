@@ -39,7 +39,10 @@ export default function Marco({ usuario, onSalir, children }) {
   const [apariencia, setApariencia] = useState(false);
   const [tema, setTema] = useState(temaAppActual);
   const [comercio, setComercio] = useState(usuario.comercio);
-  const entradas = usuario.rol === 'DUENO' || usuario.rol === 'ADMINISTRADOR' ? nav : nav.filter(([to]) => to !== '/ajustes');
+  const [oferta, setOferta] = useState('PRODUCTOS');
+  const catalogo = oferta === 'SERVICIOS' ? 'Servicios' : oferta === 'AMBAS' ? 'Productos y servicios' : 'Productos';
+  const entradas = (usuario.rol === 'DUENO' || usuario.rol === 'ADMINISTRADOR' ? nav : nav.filter(([to]) => to !== '/ajustes'))
+    .map(([to, label, Icon]) => [to, to === '/productos' ? catalogo : label, Icon]);
 
   useEffect(() => {
     let vivo = true;
@@ -51,6 +54,9 @@ export default function Marco({ usuario, onSalir, children }) {
       }
       setLogo(detail || '');
     };
+    api('/api/ajustes').then((ajuste) => vivo && setOferta(ajuste.oferta || 'PRODUCTOS')).catch(() => {});
+    const alOferta = (event) => setOferta(event.detail || 'PRODUCTOS');
+    window.addEventListener('giro-oferta', alOferta);
     api('/api/vidriera').then((vidriera) => {
       if (!vivo) return;
       setLogo(vidriera.logoUrl || '');
@@ -64,6 +70,7 @@ export default function Marco({ usuario, onSalir, children }) {
       vivo = false;
       window.removeEventListener('giro-logo', alCambiar);
       window.removeEventListener('giro-comercio', alRenombrar);
+      window.removeEventListener('giro-oferta', alOferta);
     };
   }, [usuario.comercio]);
 

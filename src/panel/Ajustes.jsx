@@ -17,6 +17,13 @@ const vacio = {
   rubroNuevo: '',
   oferta: 'PRODUCTOS',
   detalles: [],
+  servicios: [],
+  servicioNuevo: '',
+  lugarTurno: '',
+  diasTurno: [],
+  horaAbre: '09:00',
+  horaCierra: '18:00',
+  minutosTurno: 60,
   mpTitular: '',
   mpAlias: '',
   mpCvu: '',
@@ -25,6 +32,11 @@ const vacio = {
   waWabaId: '',
   waAccessToken: '',
   waSaludo: '',
+  waBotNombre: '',
+  waBotTono: 'CERCANO',
+  waBotInstrucciones: '',
+  waBotProhibidas: '',
+  waBotFirma: '',
   waActivo: false,
   waTokenEnmascarado: '',
   waNumero: '',
@@ -49,6 +61,7 @@ export default function Ajustes() {
   const [datos, setDatos] = useState(vacio);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
+  const [turnos, setTurnos] = useState([]);
   const [notaWa, setNotaWa] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [listo, setListo] = useState(false);
@@ -72,6 +85,13 @@ export default function Ajustes() {
         rubros: guardados,
         rubroNuevo: '',
         detalles: ajuste.detalles || [],
+        servicios: ajuste.servicios || [],
+        servicioNuevo: '',
+        lugarTurno: ajuste.lugarTurno || '',
+        diasTurno: ajuste.diasTurno || [],
+        horaAbre: ajuste.horaAbre || '09:00',
+        horaCierra: ajuste.horaCierra || '18:00',
+        minutosTurno: ajuste.minutosTurno || 60,
         mpTitular: ajuste.mpTitular || '',
         mpAlias: ajuste.mpAlias || '',
         mpCvu: ajuste.mpCvu || '',
@@ -80,6 +100,11 @@ export default function Ajustes() {
         waWabaId: ajuste.waWabaId || '',
         waAccessToken: '',
         waSaludo: ajuste.waSaludo || '',
+        waBotNombre: ajuste.waBotNombre || '',
+        waBotTono: ajuste.waBotTono || 'CERCANO',
+        waBotInstrucciones: ajuste.waBotInstrucciones || '',
+        waBotProhibidas: ajuste.waBotProhibidas || '',
+        waBotFirma: ajuste.waBotFirma || '',
         waTokenEnmascarado: ajuste.waTokenEnmascarado || '',
         waNumero: ajuste.waNumero || '',
         mensajeTransferencia: ajuste.mensajeTransferencia || '',
@@ -98,8 +123,16 @@ export default function Ajustes() {
 
   const estadoWa = fase || datos.waEstado || (datos.waConectado ? 'CONECTADO' : 'DESCONECTADO');
   const vendeProductos = datos.oferta !== 'SERVICIOS';
+  const ofreceServicios = datos.oferta !== 'PRODUCTOS';
   const rubrosPropios = datos.rubros.filter((id) => !RUBROS.some(([preset]) => preset === id));
   const mensaje = useMemo(() => armarTransferencia(datos), [datos]);
+
+  useEffect(() => {
+    if (!listo || !ofreceServicios) return undefined;
+    let vivo = true;
+    api('/api/turnos').then((lista) => { if (vivo) setTurnos(Array.isArray(lista) ? lista : []); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [listo, ofreceServicios, aviso]);
 
   function set(clave) {
     return (event) => setDatos((actual) => valor(actual, clave)(event));
@@ -127,6 +160,22 @@ export default function Ajustes() {
     });
   }
 
+  function agregarServicio() {
+    const texto = datos.servicioNuevo.trim();
+    if (!texto) return;
+    setDatos((actual) => {
+      if (actual.servicios.some((item) => item.toLowerCase() === texto.toLowerCase())) return { ...actual, servicioNuevo: '' };
+      return { ...actual, servicioNuevo: '', servicios: [...actual.servicios, texto] };
+    });
+  }
+
+  function alternarDia(dia) {
+    setDatos((actual) => ({
+      ...actual,
+      diasTurno: actual.diasTurno.includes(dia) ? actual.diasTurno.filter((item) => item !== dia) : [...actual.diasTurno, dia],
+    }));
+  }
+
   function alternarDetalle(id) {
     setDatos((actual) => ({
       ...actual,
@@ -145,6 +194,7 @@ export default function Ajustes() {
       if (actual) {
         guardarSesion({ token: localStorage.getItem('giro_token'), usuario: { ...actual, comercio: guardado.nombre } });
         window.dispatchEvent(new CustomEvent('giro-comercio', { detail: guardado.nombre }));
+        window.dispatchEvent(new CustomEvent('giro-oferta', { detail: guardado.oferta || datos.oferta }));
       }
       setDatos((previo) => ({
         ...previo,
@@ -152,6 +202,12 @@ export default function Ajustes() {
         waTokenEnmascarado: guardado.waTokenEnmascarado || '',
         waConectado: guardado.waConectado,
         waActivo: guardado.waActivo,
+        waSaludo: guardado.waSaludo || '',
+        waBotNombre: guardado.waBotNombre || '',
+        waBotTono: guardado.waBotTono || 'CERCANO',
+        waBotInstrucciones: guardado.waBotInstrucciones || '',
+        waBotProhibidas: guardado.waBotProhibidas || '',
+        waBotFirma: guardado.waBotFirma || '',
         waNumero: guardado.waNumero || previo.waNumero,
         mensajeTransferencia: guardado.mensajeTransferencia || '',
         webhookUrl: guardado.webhookUrl,
@@ -386,6 +442,66 @@ export default function Ajustes() {
             <button key={id} type="button" className={`rounded-xl px-3 py-2 text-xs font-bold ${datos.oferta === id ? 'bg-fill text-onfill' : 'bg-sunken text-muted'}`} onClick={() => setDatos({ ...datos, oferta: id })}>{etiqueta}</button>
           ))}
         </div>
+        {ofreceServicios && (
+          <div className="mt-4">
+            <p className="text-xs font-semibold text-muted">Qué servicios ofrecés</p>
+            <p className="mb-2 text-[11px] text-faint">El bot los nombra cuando alguien pide un turno. Podés cargar hasta 12.</p>
+            <div className="flex flex-wrap gap-2">
+              {datos.servicios.map((nombre) => (
+                <button key={nombre} type="button" className="rounded-xl bg-fill px-3 py-2 text-xs font-bold text-onfill" onClick={() => setDatos((actual) => ({ ...actual, servicios: actual.servicios.filter((item) => item !== nombre) }))}>{nombre} ×</button>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <input className="w-full rounded-xl border border-line bg-sunken px-3 py-2.5 text-sm outline-none focus:border-accent" placeholder="Ej: corte, color, consulta" value={datos.servicioNuevo} maxLength={40} onChange={set('servicioNuevo')} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); agregarServicio(); } }} />
+              <button type="button" className="shrink-0 rounded-xl bg-sunken px-3 text-xs font-bold text-ink" onClick={agregarServicio}>Agregar</button>
+            </div>
+            <p className="mb-2 mt-4 text-xs font-semibold text-muted">Dónde se atiende</p>
+            <div className="flex flex-wrap gap-2">
+              {[['', 'Sin turnos'], ['LOCAL', 'Turno en el local'], ['DOMICILIO', 'Visita a domicilio'], ['AMBOS', 'Local y domicilio']].map(([id, etiqueta]) => (
+                <button key={etiqueta} type="button" className={`rounded-xl px-3 py-2 text-xs font-bold ${datos.lugarTurno === id ? 'bg-fill text-onfill' : 'bg-sunken text-muted'}`} onClick={() => setDatos({ ...datos, lugarTurno: id })}>{etiqueta}</button>
+              ))}
+            </div>
+            {datos.lugarTurno && (
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-muted">{datos.lugarTurno === 'DOMICILIO' ? 'Días y horario de visita' : 'Días y horario del local'}</p>
+                <p className="mb-2 text-[11px] text-faint">Marcá los días que abrís. El bot arma los turnos entre la apertura y el cierre.</p>
+                <div className="flex flex-wrap gap-2">
+                  {DIAS.map(([dia, etiqueta]) => (
+                    <button key={dia} type="button" className={`rounded-xl px-3 py-2 text-xs font-bold ${datos.diasTurno.includes(dia) ? 'bg-fill text-onfill' : 'bg-sunken text-muted'}`} onClick={() => alternarDia(dia)}>{etiqueta}</button>
+                  ))}
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <label className="text-xs font-semibold text-muted">Apertura
+                    <input className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2.5 text-sm outline-none focus:border-accent" type="time" value={datos.horaAbre} onChange={set('horaAbre')} />
+                  </label>
+                  <label className="text-xs font-semibold text-muted">Cierre
+                    <input className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2.5 text-sm outline-none focus:border-accent" type="time" value={datos.horaCierra} onChange={set('horaCierra')} />
+                  </label>
+                  <label className="text-xs font-semibold text-muted">Duración de cada turno
+                    <select className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2.5 text-sm outline-none focus:border-accent" value={datos.minutosTurno} onChange={(event) => setDatos({ ...datos, minutosTurno: Number(event.target.value) })}>
+                      {DURACIONES.map((minutos) => <option key={minutos} value={minutos}>{minutos} min</option>)}
+                    </select>
+                  </label>
+                </div>
+                <p className="mt-3 text-xs text-muted">{textoFranjas(datos.horaAbre, datos.horaCierra, Number(datos.minutosTurno))}</p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {franjas(datos.horaAbre, datos.horaCierra, Number(datos.minutosTurno)).map((hora) => (
+                    <span key={hora} className="rounded-lg bg-sunken px-2 py-1 text-[11px] font-bold text-ink">{hora}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="mt-4">
+              <p className="text-xs font-semibold text-muted">Próximos turnos</p>
+              {turnos.length === 0 && <p className="mt-1 text-[11px] text-faint">Cuando alguien confirme por WhatsApp, el turno y el cliente aparecen acá.</p>}
+              <div className="mt-2 flex flex-col gap-1">
+                {turnos.map((turno) => (
+                  <p key={turno.id} className="text-xs text-ink">{cuando(turno.inicio)} · {turno.nombre} · {turno.servicio} · {turno.lugar === 'DOMICILIO' ? 'domicilio' : 'local'}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {vendeProductos && (
           <div className="mt-4">
             <p className="text-xs font-semibold text-muted">Datos para personalizar cada producto</p>
@@ -462,6 +578,26 @@ export default function Ajustes() {
             <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-card transition ${datos.waActivo ? 'left-5' : 'left-0.5'}`} />
           </button>
         </div>
+        <p className="mt-2 text-xs text-muted">Con el interruptor activo, el bot espera 10 segundos, junta los mensajes cortos y contesta en nombre del negocio con el catálogo, la dirección y los datos de pago. La clave de OpenAI queda en el servidor.</p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="text-xs font-semibold text-muted">Nombre del bot
+            <input className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2.5 text-sm outline-none focus:border-accent" maxLength={80} placeholder="Ej. Sofía" value={datos.waBotNombre} onChange={set('waBotNombre')} />
+          </label>
+          <label className="text-xs font-semibold text-muted">Tono
+            <select className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2.5 text-sm outline-none focus:border-accent" value={datos.waBotTono} onChange={set('waBotTono')}>
+              {TONOS.map(([id, etiqueta]) => <option key={id} value={id}>{etiqueta}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-muted sm:col-span-2">Cómo querés que responda
+            <textarea className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2.5 text-sm outline-none focus:border-accent" rows={3} maxLength={4000} placeholder="Si preguntan por un talle que no está, ofrecé encargarlo." value={datos.waBotInstrucciones} onChange={set('waBotInstrucciones')} />
+          </label>
+          <label className="text-xs font-semibold text-muted">Frases o temas a evitar
+            <textarea className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2.5 text-sm outline-none focus:border-accent" rows={2} maxLength={2000} placeholder="No digas barato" value={datos.waBotProhibidas} onChange={set('waBotProhibidas')} />
+          </label>
+          <label className="text-xs font-semibold text-muted">Firma al despedirse
+            <textarea className="mt-1 w-full rounded-xl border border-line bg-sunken px-3 py-2.5 text-sm outline-none focus:border-accent" rows={2} maxLength={300} placeholder="Te esperamos en el local" value={datos.waBotFirma} onChange={set('waBotFirma')} />
+          </label>
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="rounded-xl border border-line px-3 py-2 text-xs font-bold text-ink" disabled={ocupado} onClick={probar}>Probar conexión</button>
           <button type="button" className="rounded-xl border border-line px-3 py-2 text-xs font-bold text-ink" disabled={ocupado} onClick={suscribir}>Suscribir a la app de Giro</button>
@@ -488,6 +624,50 @@ export default function Ajustes() {
   );
 }
 
+const TONOS = [
+  ['CERCANO', 'Cercano'],
+  ['PROFESIONAL', 'Profesional'],
+  ['FORMAL', 'Formal'],
+  ['PERSUASIVO', 'Persuasivo'],
+  ['AMIGABLE', 'Amigable'],
+];
+
+const DIAS = [[1, 'Lunes'], [2, 'Martes'], [3, 'Miércoles'], [4, 'Jueves'], [5, 'Viernes'], [6, 'Sábado'], [7, 'Domingo']];
+const DURACIONES = [15, 30, 45, 60, 90, 120];
+
+function franjas(abre, cierra, minutos) {
+  const inicio = minutosDe(abre);
+  const fin = minutosDe(cierra);
+  if (inicio == null || fin == null || !(minutos >= 15) || fin <= inicio) return [];
+  const lista = [];
+  for (let cursor = inicio; cursor + minutos <= fin && lista.length < 48; cursor += minutos) {
+    lista.push(`${String(Math.floor(cursor / 60)).padStart(2, '0')}:${String(cursor % 60).padStart(2, '0')}`);
+  }
+  return lista;
+}
+
+function minutosDe(hora) {
+  const partes = String(hora || '').split(':');
+  if (partes.length < 2) return null;
+  const h = Number(partes[0]);
+  const m = Number(partes[1]);
+  if (!Number.isInteger(h) || !Number.isInteger(m)) return null;
+  return h * 60 + m;
+}
+
+function textoFranjas(abre, cierra, minutos) {
+  const lista = franjas(abre, cierra, minutos);
+  if (!lista.length) return 'Con ese horario no entra ningún turno completo.';
+  const horas = minutos % 60 === 0 ? `${minutos / 60} h` : `${minutos} min`;
+  return `Cada turno dura ${horas}. Entran ${lista.length} turnos por día abierto, de ${lista[0]} a ${lista[lista.length - 1]}.`;
+}
+
+function cuando(iso) {
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return iso || '';
+  return fecha.toLocaleString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
 function textoEstado(estado) {
   if (estado === 'CONECTADO') return 'Conectado';
   if (estado === 'CONECTANDO') return 'Conectando';
@@ -511,6 +691,12 @@ function cuerpo(datos) {
     rubros: datos.rubros,
     oferta: datos.oferta,
     detalles: datos.detalles,
+    servicios: datos.servicios,
+    lugarTurno: datos.lugarTurno || null,
+    diasTurno: datos.diasTurno,
+    horaAbre: datos.horaAbre,
+    horaCierra: datos.horaCierra,
+    minutosTurno: Number(datos.minutosTurno) || null,
     mpTitular: datos.mpTitular,
     mpAlias: datos.mpAlias,
     mpCvu: datos.mpCvu,
@@ -519,6 +705,11 @@ function cuerpo(datos) {
     waWabaId: datos.waWabaId,
     waAccessToken: datos.waAccessToken || null,
     waSaludo: datos.waSaludo,
+    waBotNombre: datos.waBotNombre,
+    waBotTono: datos.waBotTono,
+    waBotInstrucciones: datos.waBotInstrucciones,
+    waBotProhibidas: datos.waBotProhibidas,
+    waBotFirma: datos.waBotFirma,
     waActivo: Boolean(datos.waActivo),
     desconectarWhatsapp: false,
   };

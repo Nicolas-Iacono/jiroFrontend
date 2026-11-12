@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, token, urlApi, urlFoto, urlVidriera } from '../api.js';
+import Tienda from '@tienda/Tienda.jsx';
+import { plantillaDe, plantillas } from '@tienda/registro.js';
 
 const temas = [
   { id: 'giro', nombre: 'GIRO Violeta', detalle: 'Acentos violeta', nota: 'Firma GIRO', color: '#7c3aed', fondo: 'blanco', texto: 'oscuro', muestras: ['#7C3AED', '#4C1D95', '#EDE9FE', '#FFFFFF'] },
@@ -9,11 +11,13 @@ const temas = [
   { id: 'terracota', nombre: 'Terracota', detalle: 'Arcilla y crema', nota: 'Cálido', color: '#ea580c', fondo: 'calido', texto: 'oscuro', muestras: ['#EA580C', '#FDBA74', '#FFF7ED', '#FFFFFF'] },
   { id: 'pastel', nombre: 'Pastel', detalle: 'Rosa y lila', nota: 'Suave', color: '#db2777', fondo: 'calido', texto: 'oscuro', muestras: ['#DB2777', '#F9A8D4', '#FDF2F8', '#FFFFFF'] },
   { id: 'neon', nombre: 'Neón', detalle: 'Cian sobre noche', nota: 'Intenso', color: '#0284c7', fondo: 'oscuro', texto: 'claro', muestras: ['#0284C7', '#22D3EE', '#0F172A', '#082F49'] },
+  { id: 'barrio', nombre: 'Estilo de barrio', detalle: 'Papel, título enorme y acento', nota: 'Vidriera editorial', color: '#7C2F3B', fondo: 'crema', texto: 'oscuro', muestras: ['#7C2F3B', '#1A1614', '#F6F1E8', '#FFFFFF'] },
 ];
 const fondos = [
   ['blanco', 'Blanco', '#FFFFFF'],
   ['gris', 'Gris tenue', '#F4F5F9'],
   ['calido', 'Cálido', '#FFF7ED'],
+  ['crema', 'Papel', '#F6F1E8'],
   ['oscuro', 'Oscuro', '#111827'],
 ];
 const fuentes = [
@@ -29,6 +33,7 @@ const heroes = [
   ['ninguno', 'Sin portada'],
 ];
 const anclas = [
+  ['plantillas', 'Plantillas'],
   ['identidad', 'Identidad'],
   ['composicion', 'Vidriera'],
   ['paleta', 'Paleta y tema'],
@@ -45,6 +50,8 @@ function normalizar(data) {
     color: data?.color || '#7c3aed',
     publicada: data?.publicada !== false,
     tema: data?.tema || 'giro',
+    plantillaId: plantillas.some((item) => item.id === data?.plantillaId) ? data.plantillaId : 'giro',
+    estiloPropio: data?.estiloPropio !== false,
     fondo: data?.fondo || 'blanco',
     texto: data?.texto || 'oscuro',
     catalogo: data?.catalogo || 'grilla',
@@ -113,6 +120,8 @@ export default function Vidriera() {
   const [dispositivo, setDispositivo] = useState('movil');
   const [subiendo, setSubiendo] = useState(false);
   const [rubros, setRubros] = useState([]);
+  const [anticipada, setAnticipada] = useState('');
+  const [seccion, setSeccion] = useState('plantillas');
 
   useEffect(() => {
     let vivo = true;
@@ -134,8 +143,35 @@ export default function Vidriera() {
   const sucio = form && base ? firma(form) !== firma(base) : false;
 
   function cambiar(parcial) {
-    setForm((actual) => ({ ...actual, ...parcial }));
+    const tocaEstilo = ['color', 'fondo', 'texto', 'fuente'].some((clave) => Object.prototype.hasOwnProperty.call(parcial, clave));
+    setForm((actual) => ({
+      ...actual,
+      ...parcial,
+      estiloPropio: Object.prototype.hasOwnProperty.call(parcial, 'estiloPropio') ? parcial.estiloPropio : (tocaEstilo ? true : actual.estiloPropio),
+    }));
     setAviso('');
+  }
+
+  function usarPlantilla(plantilla) {
+    setAnticipada('');
+    const estilo = form.estiloPropio ? {} : {
+      color: plantilla.color,
+      fondo: plantilla.fondo,
+      texto: plantilla.texto,
+      fuente: plantilla.fuente,
+    };
+    cambiar({ plantillaId: plantilla.id, ...estilo, estiloPropio: form.estiloPropio });
+  }
+
+  function restaurarEstilo() {
+    const plantilla = plantillaDe(form.plantillaId);
+    cambiar({
+      color: plantilla.color,
+      fondo: plantilla.fondo,
+      texto: plantilla.texto,
+      fuente: plantilla.fuente,
+      estiloPropio: false,
+    });
   }
 
   function editarSeccion(id, parcial) {
@@ -263,6 +299,8 @@ export default function Vidriera() {
           marquesina: cuerpo.marquesina.trim(),
           hero: cuerpo.hero,
           fuente: cuerpo.fuente,
+          plantillaId: cuerpo.plantillaId,
+          estiloPropio: cuerpo.estiloPropio,
           menu: cuerpo.menu,
           logoForma: cuerpo.logoForma,
           mostrarRubros: cuerpo.mostrarRubros,
@@ -305,14 +343,20 @@ export default function Vidriera() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link to="/" className="text-xs font-bold text-accent">← Volver al inicio</Link>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h1 className="text-[22px] font-bold tracking-tight text-ink">Diseño y personalización de vidriera</h1>
-            {sucio && <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />Cambios sin guardar</span>}
-          </div>
-          <p className="mt-0.5 max-w-xl text-xs text-muted">Identidad, ficha de marca, portada, pastillas y cómo se ven los productos en la tienda pública.</p>
+      <div className="sticky top-0 z-20 -mx-5 space-y-3 bg-app px-5 pb-3 md:-mx-7 md:px-7">
+        <Link to="/" className="inline-block text-xs font-bold text-accent">← Volver al inicio</Link>
+        <Preview form={form} productos={productos} rubros={rubros} dispositivo={dispositivo} onDispositivo={setDispositivo} anticipada={anticipada} seccion={seccion} />
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Secciones de la vidriera">
+          {anclas.map(([id, etiqueta]) => (
+            <button key={id} type="button" role="tab" aria-selected={seccion === id} className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${seccion === id ? 'bg-fill text-onfill' : 'border border-line bg-card text-muted'}`} onClick={() => setSeccion(id)}>{etiqueta}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-base font-bold tracking-tight text-ink">Diseño de la vidriera</h1>
+          {sucio && <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />Cambios sin guardar</span>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="rounded-xl border border-line bg-card px-3.5 py-2 text-xs font-bold text-muted hover:bg-sunken disabled:opacity-40" disabled={!sucio || guardando} onClick={() => { setForm(base); setAviso(''); }}>Descartar cambios</button>
@@ -322,15 +366,33 @@ export default function Vidriera() {
       {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
       {aviso && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{aviso}</p>}
 
-      <div className="grid items-start gap-4 xl:grid-cols-12">
-        <div className={`space-y-4 ${dispositivo === 'tablet' ? 'xl:order-2 xl:col-span-12' : 'xl:col-span-7'}`}>
-          <div className="sticky top-0 z-10 flex flex-wrap gap-1.5 rounded-2xl border border-line/80 bg-card/95 p-1.5 shadow-sm backdrop-blur">
-            {anclas.map(([id, etiqueta]) => (
-              <button key={id} type="button" className="rounded-xl px-3 py-1.5 text-xs font-bold text-muted hover:bg-accent-soft hover:text-accent" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>{etiqueta}</button>
-            ))}
-          </div>
+      <div className="space-y-4">
+          <Seccion id="plantillas" visible={seccion === 'plantillas'} titulo="Plantillas">
+            <p className="text-xs text-muted">Elegí una composición. El nombre, el logo, las fotos y los productos siguen siendo los de este comercio. Los colores y las fuentes que ya personalizaste se conservan.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {plantillas.map((plantilla) => {
+                const activa = form.plantillaId === plantilla.id;
+                const papel = fondos.find((item) => item[0] === plantilla.fondo)?.[2] || '#fff';
+                return (
+                  <article key={plantilla.id} className={`rounded-2xl border p-3 ${activa ? 'border-accent bg-accent-soft' : 'border-line bg-card'}`}>
+                    <div className="mb-2 overflow-hidden rounded-xl border border-black/10 p-3" style={{ background: papel, color: plantilla.texto === 'claro' ? '#F8FAFC' : '#1A1614' }}>
+                      <p className="text-[10px] uppercase tracking-[0.16em]" style={{ color: plantilla.color }}>{plantilla.ejemplo}</p>
+                      <p className="mt-1 text-lg font-black leading-none" style={{ fontFamily: fuentes.find((item) => item[0] === plantilla.fuente)?.[3] }}>Tu tienda</p>
+                      <span className="mt-2 inline-block h-8 w-full rounded-md" style={{ background: plantilla.color, opacity: 0.85 }} />
+                    </div>
+                    <h3 className="text-sm font-black text-ink">{plantilla.nombre}</h3>
+                    <p className="mt-1 text-[11px] text-muted">{plantilla.estructura}</p>
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" className="rounded-xl border border-line bg-card px-3 py-1.5 text-xs font-bold text-ink" onClick={() => setAnticipada(plantilla.id)}>Vista previa</button>
+                      <button type="button" className="rounded-xl bg-fill px-3 py-1.5 text-xs font-bold text-onfill" onClick={() => usarPlantilla(plantilla)}>{activa ? 'En uso' : 'Usar plantilla'}</button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </Seccion>
 
-          <Seccion id="identidad" paso="1" titulo="Identidad">
+          <Seccion id="identidad" visible={seccion === 'identidad'} titulo="Identidad">
             <div className="flex items-center gap-3">
               <span className={`grid h-24 w-24 overflow-hidden text-2xl font-black text-white ${claseForma(form.logoForma, true)}`} style={{ background: form.color }}>
                 {form.logoUrl ? <img src={form.logoUrl} alt="" className="h-full w-full object-cover" /> : iniciales(form.titulo)}
@@ -378,7 +440,7 @@ export default function Vidriera() {
             <Interruptor activo={form.publicada} onClick={() => cambiar({ publicada: !form.publicada })}>Tienda publicada</Interruptor>
           </Seccion>
 
-          <Seccion id="composicion" paso="2" titulo="Vidriera">
+          <Seccion id="composicion" visible={seccion === 'composicion'} titulo="Vidriera">
             <p className="text-[11px] text-muted">Estos textos arman la ficha de marca, la portada y la fila de categorías. Con un tema cálido, oscuro o verde, y las categorías en pastillas, la tienda queda como las tres vidrieras de referencia.</p>
             <Campo etiqueta="Línea bajo el nombre">
               <input className={campo} value={form.estado} maxLength={120} placeholder="Abierto hoy · Villa Crespo" onChange={(event) => cambiar({ estado: event.target.value })} />
@@ -416,7 +478,11 @@ export default function Vidriera() {
             </Campo>
           </Seccion>
 
-          <Seccion id="paleta" paso="3" titulo="Paleta y tema">
+          <Seccion id="paleta" visible={seccion === 'paleta'} titulo="Paleta y tema">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted">Los colores y la tipografía son de esta vidriera. La plantilla conserva el orden de las secciones.</p>
+              <button type="button" className="rounded-xl border border-line bg-card px-3 py-1.5 text-xs font-bold text-ink" onClick={restaurarEstilo}>Restaurar estilo de la plantilla</button>
+            </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {temas.map((tema) => {
                 const activo = form.tema === tema.id;
@@ -436,8 +502,9 @@ export default function Vidriera() {
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 rounded-xl border border-line bg-card px-3 py-2 text-xs font-bold text-ink">
                 <input type="color" className="h-7 w-7 cursor-pointer border-0 bg-transparent" value={form.color} onChange={(event) => cambiar({ color: event.target.value })} />
-                Color {form.color.toUpperCase()}
+                {form.tema === 'barrio' ? 'Acento' : 'Color'} {form.color.toUpperCase()}
               </label>
+              {form.tema === 'barrio' && <p className="text-[11px] text-muted">El acento pinta precios, botones, corazones y el ítem activo. El fondo es el papel de la tienda.</p>}
             </div>
             <div>
               <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-faint">Fondo</p>
@@ -457,7 +524,7 @@ export default function Vidriera() {
             </div>
           </Seccion>
 
-          <Seccion id="catalogo" paso="4" titulo="Catálogo">
+          <Seccion id="catalogo" visible={seccion === 'catalogo'} titulo="Catálogo">
             <div className="grid gap-2 sm:grid-cols-2">
               {[['grilla', '2 columnas', 'Grilla táctil'], ['lista', 'Lista', 'Una prenda por fila']].map(([id, titulo, detalle]) => (
                 <button key={id} type="button" className={`rounded-2xl border p-3 text-left ${form.catalogo === id ? 'border-accent bg-accent-soft' : 'border-line'}`} onClick={() => cambiar({ catalogo: id })}>
@@ -474,7 +541,7 @@ export default function Vidriera() {
             <Interruptor activo={form.cuotas} onClick={() => cambiar({ cuotas: !form.cuotas })}>Mostrar el precio dividido en 3</Interruptor>
           </Seccion>
 
-          <Seccion id="portada" paso="5" titulo="Portada">
+          <Seccion id="portada" visible={seccion === 'portada'} titulo="Portada">
             <Campo etiqueta="Anuncio de la barra superior">
               <input className={campo} value={form.marquesina} maxLength={180} placeholder="Un aviso corto para quien entra a la tienda" onChange={(event) => cambiar({ marquesina: event.target.value })} />
             </Campo>
@@ -570,7 +637,7 @@ export default function Vidriera() {
             </div>
           </Seccion>
 
-          <Seccion id="tipo" paso="6" titulo="Tipografía">
+          <Seccion id="tipo" visible={seccion === 'tipo'} titulo="Tipografía">
             <div className="grid gap-2 sm:grid-cols-2">
               {fuentes.map(([id, nombre, detalle, css]) => (
                 <button key={id} type="button" className={`rounded-2xl border p-3 text-left ${form.fuente === id ? 'border-accent bg-accent-soft' : 'border-line'}`} onClick={() => cambiar({ fuente: id })}>
@@ -580,18 +647,15 @@ export default function Vidriera() {
               ))}
             </div>
           </Seccion>
-        </div>
-
-        <Preview form={form} productos={productos} rubros={rubros} dispositivo={dispositivo} onDispositivo={setDispositivo} />
       </div>
     </div>
   );
 }
 
-function Seccion({ id, paso, titulo, children }) {
+function Seccion({ id, titulo, visible, children }) {
+  if (!visible) return null;
   return (
-    <section id={id} className="scroll-mt-16 space-y-3 rounded-2xl border border-line/90 bg-card p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-accent">Paso {paso} de 6</p>
+    <section id={id} className="space-y-3 rounded-2xl border border-line/90 bg-card p-4 shadow-sm">
       <h2 className="text-base font-black text-ink">{titulo}</h2>
       {children}
     </section>
@@ -620,7 +684,7 @@ function Interruptor({ activo, onClick, children }) {
 
 const campo = 'w-full rounded-xl border border-line bg-sunken px-3 py-2 text-sm text-ink outline-none focus:border-accent';
 
-function Preview({ form, productos, rubros, dispositivo, onDispositivo }) {
+function Preview({ form, productos, rubros, dispositivo, onDispositivo, anticipada, seccion }) {
   const [buscar, setBuscar] = useState('');
   const [categoria, setCategoria] = useState('Todas');
   const [publico, setPublico] = useState('');
@@ -628,7 +692,13 @@ function Preview({ form, productos, rubros, dispositivo, onDispositivo }) {
   const [pagina, setPagina] = useState('inicio');
   const [ficha, setFicha] = useState(null);
   const [abierto, setAbierto] = useState(false);
-  const movil = dispositivo === 'movil';
+  useEffect(() => {
+    setFicha(null);
+    setPagina(seccion === 'catalogo' ? 'productos' : 'inicio');
+  }, [seccion]);
+  const movil = dispositivo !== 'tablet';
+  const plantillaVista = anticipada || form.plantillaId || 'giro';
+  const marcoPlantilla = plantillaVista !== 'giro';
   const css = fuentes.find((item) => item[0] === form.fuente)?.[3] || 'Inter, sans-serif';
   const fondo = fondos.find((item) => item[0] === form.fondo)?.[2] || '#FFFFFF';
   const tinta = form.texto === 'claro' ? '#F8FAFC' : '#0F172A';
@@ -656,7 +726,7 @@ function Preview({ form, productos, rubros, dispositivo, onDispositivo }) {
   }
 
   return (
-    <aside className={`space-y-3 rounded-2xl border border-line/90 bg-card p-4 shadow-sm ${dispositivo === 'tablet' ? 'xl:order-1 xl:col-span-12' : 'xl:sticky xl:top-0 xl:col-span-5'}`}>
+    <aside className="space-y-2 rounded-2xl border border-line/90 bg-card p-2 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-sm font-black text-ink"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />Vista previa</h2>
         <div className="flex rounded-xl bg-sunken p-1">
@@ -664,11 +734,32 @@ function Preview({ form, productos, rubros, dispositivo, onDispositivo }) {
             <button key={id} type="button" className={`rounded-lg px-3 py-1 text-xs font-bold transition-all ${dispositivo === id ? 'bg-card text-ink shadow-sm' : 'text-muted'}`} onClick={() => onDispositivo(id)}>{etiqueta}</button>
           ))}
         </div>
+        {enlace && <button type="button" className="text-xs font-bold text-accent" onClick={copiar}>Copiar enlace</button>}
         {enlace && <a className="text-xs font-bold text-accent" href={enlace} target="_blank" rel="noreferrer">Abrir</a>}
       </div>
 
-      <div className={`mx-auto overflow-hidden shadow-xl transition-all duration-300 ${movil ? 'w-[300px] rounded-[28px]' : 'w-full'}`} style={{ background: fondo, color: tinta, fontFamily: css }}>
-        {form.marquesina && <p className="truncate px-3 py-1.5 text-center text-[10px] font-semibold tracking-wide text-white" style={{ background: form.color }}>{form.marquesina}</p>}
+      {anticipada && anticipada !== form.plantillaId && <p className="text-[11px] text-muted">Vista previa de {plantillaDe(anticipada).nombre}. Tocá Usar plantilla para quedártela.</p>}
+      <div className={`relative mx-auto overflow-hidden shadow-xl transition-all duration-300 ${dispositivo === 'tablet' ? 'h-[168px] w-full' : 'h-[210px] w-[min(100%,220px)] rounded-[22px]'}`} style={{ background: fondo, color: tinta, fontFamily: css }}>
+        {form.marquesina && !marcoPlantilla && <p className="truncate px-3 py-1.5 text-center text-[10px] font-semibold tracking-wide text-white" style={{ background: form.color }}>{form.marquesina}</p>}
+        {marcoPlantilla ? (
+          <Tienda
+            anclado
+            persistir={false}
+            dispositivo={movil ? 'movil' : 'escritorio'}
+            vista={seccion === 'catalogo' ? 'productos' : 'inicio'}
+            tienda={{
+              ...form,
+              plantillaId: plantillaVista,
+              ...(anticipada && anticipada !== form.plantillaId && !form.estiloPropio ? {
+                color: plantillaDe(anticipada).color,
+                fondo: plantillaDe(anticipada).fondo,
+                texto: plantillaDe(anticipada).texto,
+                fuente: plantillaDe(anticipada).fuente,
+              } : {}),
+              productos: productos.map((item) => ({ ...item, foto: urlFoto(item) })),
+            }}
+          />
+        ) : form.tema === 'barrio' ? <PreviewBarrio form={form} productos={productos} movil={movil} fondo={fondo} /> : <>
         <BarraMenu form={form} detalle={form.estado || lugar} productos={productos} tinta={tinta} suave={suave} borde={borde} movil={movil} pagina={pagina} categoria={categoria} publico={publico} onPagina={(id) => { setFicha(null); setPagina(id); }} onCategoria={setCategoria} onPublico={setPublico} onSinMarca={setSoloSinMarca} abierto={abierto} onAbierto={setAbierto} />
         {ficha && <DetalleMini amplia={!movil} item={ficha} form={form} productos={productos} tinta={tinta} suave={suave} borde={borde} precio={precio} oscuro={oscuro} onVolver={() => setFicha(null)} onAbrir={setFicha} />}
         {!ficha && pagina === 'productos' && (
@@ -678,7 +769,7 @@ function Preview({ form, productos, rubros, dispositivo, onDispositivo }) {
           </div>
         )}
         {!ficha && pagina === 'inicio' && (
-          <div className={movil ? '' : 'grid grid-cols-[minmax(210px,280px)_1fr] items-start gap-x-3 px-3 pt-2'}>
+          <div className="flex flex-col gap-2 px-3 pt-2">
             <div className={`${movil ? 'mx-3 mt-2' : 'col-start-1'} flex items-center gap-1.5 rounded-full border px-2.5 py-1.5`} style={{ borderColor: borde, background: oscuro ? 'rgba(255,255,255,0.06)' : '#fff' }}>
               <LupaMini />
               <input className="w-full bg-transparent text-[11px] outline-none" style={{ color: tinta }} placeholder={form.buscar || 'Buscar en la tienda'} value={buscar} onChange={(event) => setBuscar(event.target.value)} />
@@ -753,16 +844,102 @@ function Preview({ form, productos, rubros, dispositivo, onDispositivo }) {
             </div>
           )}
         </div>}
+        </>}
       </div>
+    </aside>
+  );
+}
 
-      {enlace && (
-        <div className="rounded-2xl bg-accent-soft p-3">
-          <p className="text-xs font-bold text-accent">Enlace de la tienda</p>
-          <p className="mt-1 break-all text-[11px] text-muted">{enlace}</p>
-          <button type="button" className="mt-2 text-xs font-bold text-accent" onClick={copiar}>Copiar enlace</button>
+function PreviewBarrio({ form, productos, movil, fondo }) {
+  const [pagina, setPagina] = useState('inicio');
+  const [categoria, setCategoria] = useState('Todas');
+  const [fav, setFav] = useState([]);
+  const acento = form.color || '#7C2F3B';
+  const tinta = form.texto === 'claro' ? '#F6F1E8' : '#1A1614';
+  const n = String(acento).replace('#', '');
+  const luma = n.length === 6 ? (parseInt(n.slice(0, 2), 16) * 299 + parseInt(n.slice(2, 4), 16) * 587 + parseInt(n.slice(4, 6), 16) * 114) / 1000 : 0;
+  const sobre = luma > 160 ? '#1A1614' : '#FFFFFF';
+  const categorias = [...new Set(productos.map((item) => item.categoria).filter(Boolean))];
+  const portada = (form.portadas && form.portadas[0]) || form.portadaUrl || '';
+  const lista = pagina === 'favoritos'
+    ? productos.filter((item) => fav.includes(item.id))
+    : productos.filter((item) => categoria === 'Todas' || item.categoria === categoria);
+  const visibles = (pagina === 'inicio' ? productos : lista).slice(0, movil ? 2 : 3);
+  const display = { fontFamily: 'Oswald, Impact, sans-serif' };
+  return (
+    <div style={{ background: fondo, color: tinta }}>
+      <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <button type="button" className="text-left text-[11px] font-bold uppercase leading-none tracking-wide" style={display} onClick={() => setPagina('inicio')}>{form.titulo || 'Tienda'}</button>
+        {movil ? (
+          <span className="flex items-center gap-2" style={{ color: tinta }}>
+            <button type="button" aria-label="Favoritos" onClick={() => setPagina('favoritos')}>♡</button>
+            <button type="button" aria-label="Carrito" onClick={() => setPagina('carrito')}><BolsaMini /></button>
+          </span>
+        ) : (
+          <span className="flex gap-2 text-[10px] font-semibold">
+            {[['inicio', 'Inicio'], ['productos', 'Productos'], ['favoritos', 'Favoritos'], ['carrito', 'Carrito']].map(([id, etiqueta]) => (
+              <button key={id} type="button" className="border-b-2 pb-0.5" style={{ borderColor: pagina === id ? acento : 'transparent' }} onClick={() => setPagina(id)}>{etiqueta}</button>
+            ))}
+          </span>
+        )}
+      </div>
+      {pagina === 'inicio' && (
+        <div className={`${movil ? 'px-3' : 'grid grid-cols-[0.9fr_1.1fr] items-center gap-4 px-4'} pb-3`}>
+          <div>
+            <p className={`${movil ? 'text-[28px]' : 'text-[40px]'} font-bold uppercase leading-[0.88]`} style={display}>{form.heroTitulo || form.titulo || 'Tu vidriera'}</p>
+            {(form.heroTexto || form.descripcion) && <p className="mt-2 line-clamp-2 text-[12px] leading-snug">{form.heroTexto || form.descripcion}</p>}
+            <button type="button" className="mt-3 rounded-lg px-3 py-2 text-[12px] font-bold" style={{ background: acento, color: sobre }} onClick={() => setPagina('productos')}>{form.heroCta || 'Ver productos'}</button>
+          </div>
+          {form.hero !== 'ninguno' && form.hero !== 'tipografico' && (
+            <div className={`${movil ? 'mt-3 h-40' : 'h-52'} rounded-2xl bg-cover bg-center`} style={{ backgroundImage: portada ? `url(${portada})` : undefined, backgroundColor: portada ? undefined : `${acento}18` }} />
+          )}
         </div>
       )}
-    </aside>
+      {pagina === 'productos' && (
+        <div className="flex flex-wrap gap-1 px-3 pb-2">
+          <button type="button" className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: categoria === 'Todas' ? acento : 'transparent', color: categoria === 'Todas' ? sobre : tinta, border: `1px solid ${categoria === 'Todas' ? acento : tinta}` }} onClick={() => setCategoria('Todas')}>Todos</button>
+          {categorias.slice(0, 3).map((item) => (
+            <button key={item} type="button" className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: categoria === item ? acento : 'transparent', color: categoria === item ? sobre : tinta, border: `1px solid ${categoria === item ? acento : tinta}` }} onClick={() => setCategoria(item)}>{item}</button>
+          ))}
+        </div>
+      )}
+      {pagina === 'carrito' ? (
+        <div className="px-3 py-4">
+          <p className="text-2xl font-bold uppercase leading-none" style={display}>Tu carrito</p>
+          <p className="mt-2 text-[11px] opacity-70">El resumen del pedido aparece acá, con el total en el color de acento.</p>
+          <p className="mt-2 text-sm font-black" style={{ color: acento }}>{pesos(productos.reduce((suma, item) => suma + Number(item.precio || 0), 0))}</p>
+        </div>
+      ) : (
+        <div className="px-3 pb-3">
+          {pagina !== 'productos' && <p className="mb-2 text-sm font-bold uppercase" style={display}>{pagina === 'favoritos' ? 'Tus favoritos' : 'Productos destacados'}</p>}
+          {visibles.length === 0 ? <p className="py-4 text-[11px] opacity-70">{pagina === 'favoritos' ? 'Todavía no hay favoritos.' : 'No hay productos publicados.'}</p> : (
+            <div className={`grid gap-2 ${movil ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              {visibles.map((item) => (
+                <article key={item.id}>
+                  <span className="block aspect-[4/5] overflow-hidden rounded-2xl bg-[#F7F5F2]">
+                    {urlFoto(item) ? <img src={urlFoto(item)} alt="" className="h-full w-full object-contain p-2" /> : <FotoBlob id={item.id} imagen={item.imagenes?.[0]} nombre={item.nombre} />}
+                  </span>
+                  <span className="mt-1 flex items-start justify-between gap-1">
+                    <span>
+                      <span className="block truncate text-[11px] font-semibold">{item.nombre}</span>
+                      <span className="block text-[11px] font-bold" style={{ color: acento }}>{pesos(item.precioVigente ?? item.precio)}</span>
+                    </span>
+                    <button type="button" aria-label="Favorito" className="text-[12px]" style={{ color: acento }} onClick={() => setFav((actual) => actual.includes(item.id) ? actual.filter((id) => id !== item.id) : [...actual, item.id])}>{fav.includes(item.id) ? '♥' : '♡'}</button>
+                  </span>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {movil && (
+        <div className="grid grid-cols-4 border-t text-[9px] font-semibold" style={{ borderColor: `${tinta}22` }}>
+          {[['inicio', 'Inicio'], ['productos', 'Productos'], ['favoritos', 'Favoritos'], ['carrito', 'Carrito']].map(([id, etiqueta]) => (
+            <button key={id} type="button" className="py-2" style={{ color: pagina === id ? acento : `${tinta}88` }} onClick={() => setPagina(id)}>{etiqueta}</button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -978,7 +1155,7 @@ function Portada({ form, tinta, suave, amplia }) {
   }
   const fotos = form.portadas?.length ? form.portadas : [form.portadaUrl];
   return (
-    <div className={amplia ? 'relative col-start-2 row-start-1 row-span-4 h-full min-h-56 overflow-hidden' : 'relative mx-3 mt-3 h-36 overflow-hidden'} style={{ borderRadius: radio, background: `linear-gradient(145deg, ${form.color}, #1e1b4b)` }}>
+      <div className={amplia ? 'relative order-first h-52 w-full overflow-hidden' : 'relative mx-3 mt-3 h-40 overflow-hidden'} style={{ borderRadius: radio, background: `linear-gradient(145deg, ${form.color}, #1e1b4b)` }}>
       {esFoto && <img src={fotos[0]} alt="" className="h-full w-full object-cover" />}
       <CopiaPortada form={form} clara />
     </div>
@@ -1088,8 +1265,8 @@ function Tarjeta({ item, form, tinta, suave, superficie, precioColor, borde, onA
   const placaTexto = form.texto === 'claro' ? '#fff' : '#0F172A';
   return (
     <article className={horizontal ? 'flex gap-2' : ''} onClick={onAbrir} style={{ background: 'transparent', borderRadius: form.radio, cursor: onAbrir ? 'pointer' : 'default' }}>
-      <span className={`relative block overflow-hidden bg-black/5 ${horizontal ? 'h-20 w-20 shrink-0' : 'aspect-square w-full'}`} style={{ borderRadius: form.radio, border: `1px solid ${borde}` }}>
-        {foto ? <img src={foto} alt="" className="h-full w-full object-cover" /> : <FotoBlob id={item.id} imagen={item.imagenes?.[0]} nombre={item.nombre} />}
+      <span className={`relative block overflow-hidden bg-[#F7F5F2] ${horizontal ? 'h-20 w-20 shrink-0' : 'aspect-[4/5] w-full'}`} style={{ borderRadius: Math.max(Number(form.radio) || 0, 14) }}>
+        {foto ? <img src={foto} alt="" className="h-full w-full object-contain p-1.5" /> : <FotoBlob id={item.id} imagen={item.imagenes?.[0]} nombre={item.nombre} />}
         {item.categoria && !agotado && <span className="absolute left-1.5 top-1.5 max-w-[80%] truncate rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ background: placa, color: placaTexto }}>{item.categoria}</span>}
         {agotado && <span className="absolute left-1.5 top-1.5 rounded-full bg-black/75 px-1.5 py-0.5 text-[9px] font-bold text-white">Agotado</span>}
       </span>
