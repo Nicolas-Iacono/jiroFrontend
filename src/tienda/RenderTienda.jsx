@@ -62,7 +62,7 @@ function claveCarrito(slug) {
 }
 
 // Render público extraído de frontend-storefront. El editor entrega el borrador ya cargado.
-export default function RenderTienda({ data, persistir = true }) {
+export default function RenderTienda({ data, dispositivo = 'auto', persistir = true }) {
   const slug = data.slug;
   const [buscar, setBuscar] = useState('');
   const [categoria, setCategoria] = useState('Todas');
@@ -164,7 +164,7 @@ export default function RenderTienda({ data, persistir = true }) {
   }
 
   if (data.plantillaId && data.plantillaId !== 'giro') {
-    return <Tienda tienda={data} persistir={persistir} />;
+    return <Tienda tienda={data} dispositivo={dispositivo} persistir={persistir} />;
   }
   if (data.tema === 'barrio') {
     return <Barrio persistir={persistir} data={data} slug={slug} carrito={carrito} onAgregar={agregar} onCantidad={cambiarCantidad} />;

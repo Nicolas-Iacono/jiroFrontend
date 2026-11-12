@@ -778,10 +778,14 @@ const campo = 'w-full rounded-xl border border-line bg-sunken px-3 py-2 text-sm 
 function VistaPrevia({ tienda, dispositivo }) {
   const marco = useRef(null);
   function actualizar() {
-    marco.current?.contentWindow?.postMessage({ tipo: 'giro-vista-tienda', tienda }, window.location.origin);
+    marco.current?.contentWindow?.postMessage({
+      tipo: 'giro-vista-tienda',
+      tienda,
+      dispositivo,
+    }, window.location.origin);
   }
 
-  useEffect(actualizar, [tienda]);
+  useEffect(actualizar, [tienda, dispositivo]);
 
   return <iframe ref={marco} src={import.meta.env.BASE_URL + 'vista-tienda.html'} title="Vista previa interactiva de la tienda"
     className="vidriera-marco" data-dispositivo={dispositivo} onLoad={actualizar} />;
