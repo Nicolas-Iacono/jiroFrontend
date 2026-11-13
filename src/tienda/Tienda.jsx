@@ -104,7 +104,8 @@ export default function Tienda({ tienda, dispositivo = 'auto', persistir = true,
   }, [productos]);
 
   const portada = tienda?.portadaUrl || (tienda?.portadas || [])[0] || fotoDe(productos[0], slug);
-  const tituloHero = tienda?.heroTitulo || tienda?.titulo || plantilla.ejemplo;
+  const tituloHero = tienda?.heroTitulo
+    || (plantilla.variante === 'under' ? 'Ropa de calle' : tienda?.titulo || plantilla.ejemplo);
   const textoHero = tienda?.heroTexto || tienda?.descripcion || '';
   const cta = tienda?.heroCta || 'Ver productos';
   const papel = papeles[tienda?.fondo] || papeles.blanco;
@@ -161,6 +162,11 @@ export default function Tienda({ tienda, dispositivo = 'auto', persistir = true,
     }));
   }
 
+  const fuenteElegida = fuentesCss[tienda?.fuente] || fuentesCss[plantilla.fuente] || fuentesCss.jakarta;
+  const fuenteBajoCero = plantilla.variante === 'under' && tienda?.estiloPropio === false
+    ? '"Oswald", "Arial Narrow", sans-serif'
+    : fuenteElegida;
+  const bajada = tienda?.estado || (plantilla.variante === 'under' ? 'Ropa under' : '');
   const estilo = {
     '--acento': tienda?.color || plantilla.color,
     '--papel': papel,
@@ -169,8 +175,9 @@ export default function Tienda({ tienda, dispositivo = 'auto', persistir = true,
     '--sobre': tintaSobre(tienda?.color || plantilla.color),
     '--tarjeta': clara ? 'rgba(255,255,255,0.06)' : '#FFFFFF',
     '--linea': clara ? 'rgba(248,250,252,0.16)' : 'rgba(26,22,20,0.12)',
-    '--fuente': fuentesCss[tienda?.fuente] || fuentesCss[plantilla.fuente] || fuentesCss.jakarta,
-    '--display': fuentesCss[tienda?.fuente] || fuentesCss[plantilla.fuente] || fuentesCss.jakarta,
+    '--fuente': fuenteElegida,
+    '--display': fuenteElegida,
+    '--bajo-cero-display': fuenteBajoCero,
   };
 
   return (
@@ -185,12 +192,12 @@ export default function Tienda({ tienda, dispositivo = 'auto', persistir = true,
       <header className="tienda-cabecera">
         <div className="tienda-marco" style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%' }}>
           <button type="button" className="tienda-marca" onClick={() => ir('inicio', 'Todas')}>
-            <span className="tienda-logo">
+            <span className={`tienda-logo ${tienda?.logoUrl ? 'tienda-logo--imagen' : 'tienda-logo--iniciales'}`}>
               {tienda?.logoUrl ? <img src={tienda.logoUrl} alt="" /> : iniciales(tienda?.titulo)}
             </span>
             <span>
               <span className="tienda-nombre">{tienda?.titulo || 'Tienda'}</span>
-              {tienda?.estado ? <span className="tienda-bajada">{tienda.estado}</span> : null}
+              {bajada ? <span className="tienda-bajada">{bajada}</span> : null}
             </span>
           </button>
           <nav className="tienda-links" aria-label="Secciones">
@@ -293,7 +300,7 @@ function Inicio({ plantilla, tienda, productos, categorias, categoria, buscar, p
   }).slice(0, 6);
   const bloques = {
     portada: (
-      <Portada key="portada" portada={portada} titulo={titulo} texto={texto} cta={cta} etiqueta={tienda?.heroEtiqueta} onVer={onVerProductos} />
+      <Portada key="portada" bajoCero={plantilla.variante === 'under'} portada={portada} titulo={titulo} texto={texto} cta={cta} etiqueta={tienda?.heroEtiqueta} onVer={onVerProductos} />
     ),
     categorias: (
       <Categorias key="categorias" categorias={categorias} activa={categoria} onElegir={onCategoria} titulo={tienda?.explorar || 'Categorías'} />
@@ -314,17 +321,24 @@ function Inicio({ plantilla, tienda, productos, categorias, categoria, buscar, p
   return <>{plantilla.secciones.map((id) => bloques[id])}</>;
 }
 
-function Portada({ portada, titulo, texto, cta, etiqueta, onVer }) {
+function Portada({ bajoCero = false, portada, titulo, texto, cta, etiqueta, onVer }) {
   return (
-    <section className="tienda-hero" aria-label="Portada">
+    <section className={`tienda-hero ${bajoCero ? 'tienda-hero--bajo-cero' : ''}`} aria-label="Portada">
+      <div className="tienda-foto">
+        {portada ? <img src={portada} alt="" /> : <span>Foto de portada</span>}
+      </div>
+      {bajoCero ? (
+        <>
+          <div className="tienda-hero-papel" aria-hidden="true" />
+          <span className="tienda-hero-corona" aria-hidden="true">♛</span>
+          <span className="tienda-hero-rasgado" aria-hidden="true" />
+        </>
+      ) : null}
       <div className="tienda-hero-texto">
         {etiqueta ? <p style={{ marginBottom: 8, letterSpacing: '0.14em', textTransform: 'uppercase', fontSize: 12 }}>{etiqueta}</p> : null}
         <h1>{titulo}</h1>
         {texto ? <p>{texto}</p> : null}
         <button type="button" className="tienda-cta" onClick={onVer}>{cta}</button>
-      </div>
-      <div className="tienda-foto">
-        {portada ? <img src={portada} alt="" /> : <span>Foto de portada</span>}
       </div>
     </section>
   );

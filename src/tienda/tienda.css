@@ -551,3 +551,504 @@
 .tienda.es-escritorio[data-variante="orfebre"] .tienda-links { position: absolute; right: 20px; }
 .tienda.anclado.es-movil .tienda-cuerpo { padding-bottom: 24px; }
 .tienda.anclado.es-movil .tienda-pie { display: grid; }
+
+/* Bajo Cero: portada urbana editorial con papel rasgado y acento configurable */
+.tienda[data-variante="under"] {
+  --under-ink: #101010;
+  --under-paper: #f0ece4;
+  --under-header-height: 100px;
+  --under-marco: min(100% - 144px, 1270px);
+  --under-hero-height: clamp(380px, 31vw, 438px);
+  --under-hero-image-position: 68% 50%;
+  --under-paper-width: 48%;
+  --under-paper-shape: polygon(0 0, 96% 0, 90% 15%, 100% 30%, 91% 46%, 98% 62%, 88% 80%, 94% 92%, 82% 100%, 0 100%);
+  --under-content-left: 5.7%;
+  --under-content-bottom: 42px;
+  --under-content-width: 45%;
+  --under-title-size: clamp(76px, 10vw, 150px);
+  --under-crown-size: clamp(72px, 8vw, 108px);
+  --under-crown-left: 42%;
+  --under-crown-top: 13%;
+  --under-tear-width: 52%;
+  --under-tear-height: 92px;
+  --under-grid-columns: repeat(3, minmax(0, 1fr));
+  --under-grid-gap: 30px 32px;
+  --under-card-ratio: 3 / 2;
+  --under-card-title-size: clamp(20px, 2vw, 28px);
+  --under-catalog-padding: 34px 5% 48px;
+  background: var(--under-paper);
+  color: var(--under-ink);
+}
+
+.tienda[data-variante="under"] .tienda-cabecera {
+  min-height: var(--under-header-height);
+  padding: 0;
+  background: #101010;
+  color: #f5f3ee;
+  border: 0;
+}
+
+.tienda[data-variante="under"] .tienda-marco {
+  width: var(--under-marco);
+}
+
+.tienda[data-variante="under"] .tienda-marca {
+  color: #f5f3ee;
+}
+
+.tienda[data-variante="under"] .tienda-logo--iniciales {
+  display: none;
+}
+
+.tienda[data-variante="under"] .tienda-logo--imagen {
+  width: 48px;
+  height: 48px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.tienda[data-variante="under"] .tienda-nombre,
+.tienda[data-variante="under"] .tienda-bajada,
+.tienda[data-variante="under"] .tienda-links button,
+.tienda[data-variante="under"] .tienda-card h3,
+.tienda[data-variante="under"] .tienda-card h3 button {
+  font-family: var(--bajo-cero-display, var(--display));
+}
+
+.tienda[data-variante="under"] .tienda-nombre {
+  color: #f5f3ee;
+  font-size: clamp(32px, 4.5vw, 62px);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: .86;
+  text-transform: uppercase;
+}
+
+.tienda[data-variante="under"] .tienda-bajada {
+  display: block;
+  color: rgba(245, 243, 238, .78);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .22em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.tienda[data-variante="under"] .tienda-links {
+  display: flex;
+  gap: 24px;
+  margin-left: auto;
+}
+
+.tienda[data-variante="under"] .tienda-links button {
+  padding: 10px 0;
+  border-radius: 0;
+  color: #f5f3ee;
+  font-size: clamp(18px, 1.75vw, 28px);
+  font-weight: 900;
+  letter-spacing: -.02em;
+  text-transform: uppercase;
+}
+
+.tienda[data-variante="under"] .tienda-links button[aria-current="page"] {
+  color: var(--acento);
+  box-shadow: inset 0 -3px 0 var(--acento);
+}
+
+.tienda[data-variante="under"] .tienda-cuerpo {
+  padding: 0;
+  background: var(--under-paper);
+}
+
+.tienda[data-variante="under"] .tienda-hero--bajo-cero {
+  position: relative;
+  display: block;
+  height: var(--under-hero-height);
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  background: #202020;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-hero--bajo-cero {
+  display: block;
+}
+
+.tienda[data-variante="under"] .tienda-hero--bajo-cero .tienda-foto {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  min-height: 0;
+  border-radius: 0;
+  background: #202020;
+}
+
+.tienda[data-variante="under"] .tienda-hero--bajo-cero .tienda-foto img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  object-position: var(--under-hero-image-position);
+  filter: saturate(.82) contrast(1.08) brightness(.88);
+}
+
+.tienda[data-variante="under"] .tienda-hero-papel {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 1;
+  width: var(--under-paper-width);
+  background:
+    radial-gradient(circle at 18% 30%, rgba(255,255,255,.5) 0 1px, transparent 2px),
+    radial-gradient(circle at 72% 76%, rgba(16,16,16,.08) 0 1px, transparent 2px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.08) 0 2px, transparent 2px 7px),
+    var(--under-paper);
+  background-size: 17px 17px, 23px 23px, auto, auto;
+  clip-path: var(--under-paper-shape);
+  filter: drop-shadow(10px 0 0 rgba(16,16,16,.18));
+}
+
+.tienda[data-variante="under"] .tienda-hero-corona {
+  position: absolute;
+  top: var(--under-crown-top);
+  left: var(--under-crown-left);
+  z-index: 3;
+  color: var(--acento);
+  font-family: Georgia, serif;
+  font-size: var(--under-crown-size);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 2px 2px 0 #101010;
+  transform: rotate(-12deg);
+}
+
+.tienda[data-variante="under"] .tienda-hero-rasgado {
+  position: absolute;
+  right: -3%;
+  bottom: -16px;
+  z-index: 3;
+  width: var(--under-tear-width);
+  height: var(--under-tear-height);
+  background: var(--acento);
+  clip-path: polygon(0 76%, 8% 58%, 18% 64%, 28% 38%, 38% 52%, 50% 30%, 60% 48%, 72% 18%, 82% 34%, 92% 9%, 100% 0, 100% 100%, 0 100%);
+  transform: rotate(-2deg);
+}
+
+.tienda[data-variante="under"] .tienda-hero--bajo-cero .tienda-hero-texto {
+  position: absolute;
+  left: var(--under-content-left);
+  bottom: var(--under-content-bottom);
+  z-index: 4;
+  width: var(--under-content-width);
+  max-width: none;
+  color: var(--under-ink);
+}
+
+.tienda[data-variante="under"] .tienda-hero--bajo-cero .tienda-hero-texto h1 {
+  max-width: 8ch;
+  margin: 0;
+  color: var(--under-ink);
+  font-family: var(--bajo-cero-display, var(--display));
+  font-size: var(--under-title-size);
+  font-weight: 900;
+  line-height: .84;
+  letter-spacing: -.065em;
+  text-transform: uppercase;
+  transform: rotate(-3deg) skewX(-3deg);
+  transform-origin: left bottom;
+}
+
+.tienda[data-variante="under"] .tienda-hero--bajo-cero .tienda-hero-texto p {
+  max-width: 34ch;
+  color: rgba(16,16,16,.7);
+  font-family: var(--bajo-cero-display, var(--display));
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tienda[data-variante="under"] .tienda-hero--bajo-cero .tienda-cta {
+  min-height: 66px;
+  margin-top: 26px;
+  padding: 0 24px;
+  border-radius: 4px;
+  background: var(--acento);
+  color: var(--sobre);
+  font-family: var(--bajo-cero-display, var(--display));
+  font-size: clamp(17px, 1.65vw, 23px);
+  font-weight: 900;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+}
+
+.tienda[data-variante="under"] .tienda-seccion {
+  position: relative;
+  margin: 0;
+  padding: var(--under-catalog-padding);
+  background: var(--under-paper);
+}
+
+.tienda[data-variante="under"] .tienda-seccion h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tienda[data-variante="under"] .tienda-grilla {
+  display: grid;
+  grid-template-columns: var(--under-grid-columns);
+  gap: var(--under-grid-gap);
+}
+
+.tienda[data-variante="under"] .tienda-card {
+  min-width: 0;
+  background: transparent;
+}
+
+.tienda[data-variante="under"] .tienda-card figure {
+  aspect-ratio: var(--under-card-ratio);
+  border-radius: 0;
+  background: #d8d4cc;
+}
+
+.tienda[data-variante="under"] .tienda-card img {
+  object-fit: cover;
+}
+
+.tienda[data-variante="under"] .tienda-card .tienda-corazon {
+  width: 42px;
+  height: 42px;
+  border: 2px solid rgba(16,16,16,.55);
+  border-radius: 2px;
+  background: rgba(245,243,238,.88);
+  color: var(--under-ink);
+  font-family: Arial, sans-serif;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.tienda[data-variante="under"] .tienda-meta {
+  padding: 10px 0 0;
+}
+
+.tienda[data-variante="under"] .tienda-card h3,
+.tienda[data-variante="under"] .tienda-card h3 button {
+  color: var(--under-ink);
+  font-size: var(--under-card-title-size);
+  font-weight: 900;
+  letter-spacing: -.02em;
+  line-height: .98;
+  text-transform: uppercase;
+}
+
+.tienda[data-variante="under"] .tienda-card .tienda-precio {
+  display: inline-block;
+  margin: 8px 0 0;
+  padding: 4px 8px;
+  background: var(--acento);
+  color: var(--sobre);
+  font-family: var(--bajo-cero-display, var(--display));
+  font-size: clamp(16px, 1.6vw, 22px);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tienda[data-variante="under"] .tienda-card .tienda-stock,
+.tienda[data-variante="under"] .tienda-card .tienda-sumar {
+  display: none;
+}
+
+@media (max-width: 799px) {
+  .tienda:not(.es-escritorio)[data-variante="under"] {
+    --under-header-height: 78px;
+    --under-marco: calc(100% - 32px);
+    --under-hero-height: 300px;
+    --under-hero-image-position: 70% 30%;
+    --under-paper-width: 70%;
+    --under-paper-shape: polygon(0 0, 82% 0, 74% 19%, 92% 37%, 76% 55%, 94% 73%, 78% 100%, 0 100%);
+    --under-content-left: 16px;
+    --under-content-bottom: 24px;
+    --under-content-width: 67%;
+    --under-title-size: clamp(44px, 12vw, 50px);
+    --under-crown-size: 58px;
+    --under-crown-left: 45%;
+    --under-crown-top: 25%;
+    --under-tear-width: 62%;
+    --under-tear-height: 56px;
+    --under-grid-columns: repeat(2, minmax(0, 1fr));
+    --under-grid-gap: 18px 16px;
+    --under-card-ratio: 6 / 5;
+    --under-card-title-size: clamp(13px, 3.8vw, 17px);
+    --under-catalog-padding: 18px 16px calc(44px + env(safe-area-inset-bottom));
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-logo--imagen {
+    width: 36px;
+    height: 36px;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-nombre {
+    font-size: 38px;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-bajada {
+    font-size: 10px;
+    letter-spacing: .16em;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-links {
+    display: none;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-pie {
+    display: grid;
+    min-height: calc(76px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: #101010;
+    border-top: 0;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-pie button {
+    min-height: 76px;
+    color: #f5f3ee;
+    font-family: var(--bajo-cero-display, var(--display));
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-pie button[aria-current="page"] {
+    color: var(--acento);
+    box-shadow: inset 0 -3px 0 var(--acento);
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-cuerpo {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-hero--bajo-cero {
+    display: block;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-card .tienda-corazon {
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-card .tienda-meta {
+    padding-top: 8px;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-card .tienda-precio {
+    margin-top: 5px;
+    font-size: clamp(15px, 4.2vw, 19px);
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-hero--bajo-cero .tienda-hero-texto h1 {
+    max-width: 9ch;
+    line-height: .86;
+  }
+
+  .tienda:not(.es-escritorio)[data-variante="under"] .tienda-hero--bajo-cero .tienda-cta {
+    min-height: 46px;
+    margin-top: 14px;
+    padding: 0 16px;
+    font-size: 15px;
+  }
+}
+
+.tienda.es-movil[data-variante="under"] {
+  --under-header-height: 78px;
+  --under-marco: calc(100% - 32px);
+  --under-hero-height: 300px;
+  --under-hero-image-position: 70% 30%;
+  --under-paper-width: 70%;
+  --under-paper-shape: polygon(0 0, 82% 0, 74% 19%, 92% 37%, 76% 55%, 94% 73%, 78% 100%, 0 100%);
+  --under-content-left: 16px;
+  --under-content-bottom: 24px;
+  --under-content-width: 67%;
+  --under-title-size: clamp(44px, 12vw, 50px);
+  --under-crown-size: 58px;
+  --under-crown-left: 45%;
+  --under-crown-top: 25%;
+  --under-tear-width: 62%;
+  --under-tear-height: 56px;
+  --under-grid-columns: repeat(2, minmax(0, 1fr));
+  --under-grid-gap: 18px 16px;
+  --under-card-ratio: 6 / 5;
+  --under-card-title-size: clamp(13px, 3.8vw, 17px);
+  --under-catalog-padding: 18px 16px calc(44px + env(safe-area-inset-bottom));
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-logo--imagen {
+  width: 36px;
+  height: 36px;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-nombre {
+  font-size: 38px;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-bajada {
+  font-size: 10px;
+  letter-spacing: .16em;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-links {
+  display: none;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-pie {
+  display: grid;
+  min-height: calc(76px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: #101010;
+  border-top: 0;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-pie button {
+  min-height: 76px;
+  color: #f5f3ee;
+  font-family: var(--bajo-cero-display, var(--display));
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-pie button[aria-current="page"] {
+  color: var(--acento);
+  box-shadow: inset 0 -3px 0 var(--acento);
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-cuerpo {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-card .tienda-corazon {
+  width: 44px;
+  height: 44px;
+  font-size: 24px;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-card .tienda-meta {
+  padding-top: 8px;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-card .tienda-precio {
+  margin-top: 5px;
+  font-size: clamp(15px, 4.2vw, 19px);
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-hero--bajo-cero .tienda-hero-texto h1 {
+  max-width: 9ch;
+  line-height: .86;
+}
+
+.tienda.es-movil[data-variante="under"] .tienda-hero--bajo-cero .tienda-cta {
+  min-height: 46px;
+  margin-top: 14px;
+  padding: 0 16px;
+  font-size: 15px;
+}
